@@ -1,33 +1,28 @@
-# MiFlix Android TV V1.9.5
+# MiFlix Android TV V1.9.6
 
-Android TV test build focused on remote-control navigation and native playback reliability.
+TV-first performance and navigation build.
 
-## What changed
+## Main fixes
 
-- D-pad spatial navigation throughout the UI.
-- Up/Down no longer gets trapped by sliders such as Rounding/Blur/Intro length.
-- TV settings layout is slimmer and easier to navigate from a couch.
-- Native MiFlix splash screen on launch.
-- Native Media3/ExoPlayer playback now uses a TextureView instead of SurfaceView to avoid black video when the player is layered over the MiFlix WebView.
-- Media3 decoder fallback is enabled.
-- TV Compatibility Mode is enabled by default and prefers 1080p/H.264 sources over Dolby Vision, AV1 and HEVC when possible.
-- Android Back button closes the native player or navigates back inside MiFlix.
-- Supabase URL and publishable key are prefilled.
-- TMDB and personal Torrentio/TorBox defaults can be injected securely during the GitHub Actions build with repository secrets.
-
-## Private build defaults
-
-Do **not** paste a TorBox API key or TMDB Read Access Token directly into a public GitHub repository.
-
-Create these repository Actions secrets instead:
-
-- `MIFLIX_TMDB_TOKEN`
-- `MIFLIX_TORRENTIO_MANIFEST`
-
-The build workflow writes them into the APK at build time. They are not committed into the source repository.
-
-Note: any secret embedded in an APK can still be extracted by someone who obtains the APK. This setup prevents accidental exposure in the public source code, but a truly private credential should ideally be fetched after login from your own protected backend.
+- Modal focus is now trapped inside the movie/series detail window on Android TV.
+- D-pad Up/Down scrolls and focuses controls inside the active modal instead of moving the page behind it.
+- The background page is locked while a modal is open.
+- Details modal is wider (up to 97vw / 1500px) with lighter rendering.
+- Android TV runtime disables browser trailer previews and smooth-motion effects that made WebView feel sluggish.
+- TMDB card art uses smaller TV-friendly image sizes; hero/detail art stays higher resolution.
+- Platform GIFs load only when the platform tile actually receives focus.
+- Animated GIF covers are avoided for idle TV tiles where possible.
+- Home startup uses only the first 8 cards per rail and only the first two collection rows.
+- TV startup fetches Trending, Popular Movies and Popular Series first; heavier TMDB refreshes are delayed.
+- Personal Torrentio setup and cloud sync bootstrap after the first screen is already navigable.
+- WebView hardware acceleration/cache/overscroll settings tuned for TV.
 
 ## Build
 
-See `BUILD_APK.md`.
+The included GitHub Actions workflow creates `MiFlix-TV-v1.9.6.apk` and release tag `tv-v1.9.6`.
+
+Existing repository secrets remain the same:
+- `MIFLIX_TMDB_TOKEN`
+- `MIFLIX_TORRENTIO_MANIFEST`
+
+Supabase publishable defaults remain bundled in `private-config.js`; private TMDB/Torrentio values are injected only at build time.

@@ -1,4 +1,4 @@
-/* MiFlix V1.9.5 - personal media center prototype.
+/* MiFlix V1.9.6 - personal media center prototype.
    V1.2 added:
    - Live TMDB metadata/catalog/search (user supplies their own API key/read token)
    - English/Spanish UI + TMDB language switching
@@ -10,7 +10,7 @@
    - TMDB → IMDb mapping for stream add-ons
 */
 
-const APP_VERSION = '1.9.5';
+const APP_VERSION = '1.9.6';
 const PERSONAL_DEFAULTS = Object.freeze(window.MIFLIX_DEFAULTS || {});
 const IS_ANDROID_TV = (()=>{try{return window.MiFlixAndroid?.platform?.()==='android-tv';}catch{return false;}})();
 const TMDB_API = 'https://api.themoviedb.org/3';
@@ -243,6 +243,9 @@ const store = {
 };
 
 let settings = {...DEFAULT_SETTINGS,...store.get('settings',{})};
+// Android TV prioritizes instant D-pad response over browser-only eye candy.
+// These are runtime overrides only; saved PC preferences remain untouched.
+if(IS_ANDROID_TV){ settings.motion=false; settings.autoPreviews=false; }
 if(settings.playerEngine==='native' || settings.playerEngine==='browser') settings.playerEngine='builtin';
 if(!settings.externalPlayer) settings.externalPlayer='mpv';
 let favorites = new Set(store.get('favorites',[]));
@@ -367,20 +370,24 @@ function allCatalog(){
   return [...map.values()];
 }
 function itemById(id){ return allCatalog().find(x=>x.id===id); }
+function tmdbSizedUrl(src,size){
+  if(!src||!size||!/image\.tmdb\.org\/t\/p\//i.test(src))return src||'';
+  return String(src).replace(/\/t\/p\/(?:original|w\d+)\//i,`/t/p/${size}/`);
+}
 function cardImageUrl(item){
   let src=item?.cardImage||item?.backdrop||item?.poster||'';
-  // Older cached TMDB rows may only have the large w1280 backdrop. Cards do not
-  // need that much bandwidth, so transparently request a smaller image.
-  if(item?.provider==='tmdb'&&/image\.tmdb\.org\/t\/p\/w1280\//i.test(src))src=src.replace('/w1280/','/w500/');
+  if(item?.provider==='tmdb')src=tmdbSizedUrl(src,IS_ANDROID_TV?'w342':'w500');
   return src;
 }
 function imageMarkup(item, cls='media-image'){
-  const hero=cls==='hero-image',src=hero?(item.backdrop||item.poster||''):cardImageUrl(item),fallback=item.poster&&item.poster!==src?item.poster:'';
+  const large=cls==='hero-image'||cls==='detail-backdrop-image';
+  let src=large?(item.backdrop||item.poster||''):cardImageUrl(item);
+  if(IS_ANDROID_TV&&item?.provider==='tmdb'&&large)src=tmdbSizedUrl(src,'w780');
+  let fallback=item.poster&&item.poster!==src?item.poster:'';
+  if(IS_ANDROID_TV&&item?.provider==='tmdb'&&fallback)fallback=tmdbSizedUrl(fallback,large?'w500':'w342');
   if(!src)return '';
   const fallbackAttr=fallback?` data-fallback="${esc(fallback)}"`:'';
-  // Edge app-mode + file:// showed an intermittent lazy-loading regression on
-  // horizontal rails. Cards are intentionally eager again; w500 keeps payloads modest.
-  const priority=hero?' loading="eager" fetchpriority="high"':' loading="eager" fetchpriority="auto"';
+  const priority=large?' loading="eager" fetchpriority="high"':(IS_ANDROID_TV?' loading="lazy" fetchpriority="low"':' loading="eager" fetchpriority="auto"');
   return `<img class="${cls}" src="${esc(src)}"${fallbackAttr}${priority} decoding="async" referrerpolicy="no-referrer" alt="" draggable="false" onerror="if(this.dataset.fallback&&!this.dataset.fallbackUsed){this.dataset.fallbackUsed='1';this.src=this.dataset.fallback}else{this.style.display='none'}">`;
 }
 function mediaTypeLabel(item){ return item.type==='series'?t('show'):t('movie'); }
@@ -434,13 +441,17 @@ function categoryTile(key,label){
 function platformTile(slug,label){
   const art=PLATFORM_ART[slug]||{};
   const p=platformProviders?.[slug]?.movie||platformProviders?.[slug]?.tv;
-  const fallback=p?.logo_path?tmdbImage(p.logo_path,'w500'):'';
-  const cover=art.cover||fallback;
-  let focus=art.focus||cover;
-  if(/\.gifv(?:\?|$)/i.test(focus)) focus=focus.replace(/\.gifv(?=\?|$)/i,'.gif');
+  const fallback=p?.logo_path?tmdbImage(p.logo_path,'w300'):'';
+  let cover=art.cover||fallback;
+  // Animated covers are expensive on TV WebView. Idle tiles stay static;
+  // the GIF is fetched only when the tile actually receives focus.
+  if(IS_ANDROID_TV&&/\.(?:gif|gifv)(?:\?|$)/i.test(cover))cover=fallback||'';
+  let focus=art.focus||art.cover||fallback;
+  if(/\.gifv(?:\?|$)/i.test(focus))focus=focus.replace(/\.gifv(?=\?|$)/i,'.gif');
+  const focusImg=focus?(IS_ANDROID_TV?`<img class="platform-focus" data-focus-src="${esc(focus)}" alt="" decoding="async">`:`<img class="platform-focus" src="${esc(focus)}" alt="" loading="lazy" decoding="async">`):'';
   return `<button class="platform-tile" data-platform="${slug}" aria-label="${esc(label)}">
-    ${cover?`<img class="platform-cover" src="${esc(cover)}" alt="${esc(label)}" loading="lazy">`:`<span class="platform-fallback">${esc(label)}</span>`}
-    ${focus?`<img class="platform-focus" src="${esc(focus)}" alt="" loading="lazy">`:''}
+    ${cover?`<img class="platform-cover" src="${esc(cover)}" alt="${esc(label)}" loading="lazy" decoding="async">`:`<span class="platform-fallback">${esc(label)}</span>`}
+    ${focusImg}
     <span class="platform-label">${esc(label)}</span>
   </button>`;
 }
@@ -466,16 +477,18 @@ function renderHome(){
   ].map(x=>platformTile(...x)).join(''),'platform-row')}</section>`;
   const yearNow=new Date().getFullYear();
   const years=`<section class="section compact-section"><div class="section-head"><div><h3>${t('moviesByYear')}</h3></div></div>${railShell([yearNow,yearNow-1,yearNow-2,yearNow-3,yearNow-4,yearNow-5].map(y=>`<button class="year-tile" data-year="${y}"><b>${y}</b><small>${t('movies')}</small></button>`).join(''),'year-row')}</section>`;
-  const collectionRows=collections.length?collections.map(c=>collectionBlock(c,false)).join(''):'';
-  const trending=homeSections.trending?.length?homeSections.trending:fallbackPopular;
-  const popularMovies=homeSections.popularMovies||catalog.filter(x=>x.type==='movie').slice(0,12);
-  const popularSeries=homeSections.popularSeries||catalog.filter(x=>x.type==='series').slice(0,12);
-  const topRated=homeSections.topRated||fallbackPopular;
-  const byYear=homeSections.byYear||[];
-  view.innerHTML = `${dataBadge}${hero(featured)}${section(t('continueWatching'),t('continueSub'),continueItems)}${collectionRows}${platforms}${section(t('trendingNow'),'TMDB',trending)}${section(t('popularMovies'),'TMDB',popularMovies)}${section(t('popularSeries'),'TMDB',popularSeries)}${categories}${years}${section(t('topRated'),'TMDB',topRated)}${section(`${t('moviesByYear')} ${new Date().getFullYear()}`,'TMDB Discover',byYear)}`;
+  const rowLimit=IS_ANDROID_TV?8:12;
+  const collectionRows=collections.length?(IS_ANDROID_TV?collections.slice(0,2):collections).map(c=>collectionBlock(c,false)).join(''):'';
+  const trending=(homeSections.trending?.length?homeSections.trending:fallbackPopular).slice(0,rowLimit);
+  const popularMovies=(homeSections.popularMovies||catalog.filter(x=>x.type==='movie')).slice(0,rowLimit);
+  const popularSeries=(homeSections.popularSeries||catalog.filter(x=>x.type==='series')).slice(0,rowLimit);
+  const topRated=(homeSections.topRated||fallbackPopular).slice(0,rowLimit);
+  const byYear=(homeSections.byYear||[]).slice(0,rowLimit);
+  view.innerHTML = `${dataBadge}${hero(featured)}${section(t('continueWatching'),t('continueSub'),continueItems.slice(0,rowLimit))}${collectionRows}${platforms}${section(t('trendingNow'),'TMDB',trending)}${section(t('popularMovies'),'TMDB',popularMovies)}${section(t('popularSeries'),'TMDB',popularSeries)}${categories}${years}${section(t('topRated'),'TMDB',topRated)}${section(`${t('moviesByYear')} ${new Date().getFullYear()}`,'TMDB Discover',byYear)}`;
   setAmbient(featured,false);
   if(tmdbAuth.credential && (!homeSectionsLoadedAt || Date.now()-homeSectionsLoadedAt>30*60*1000)) loadHomeSections();
-  if(tmdbAuth.credential) loadDiscoveryArt();
+  // Desktop can prefetch decorative discovery art. TV loads those lists only when opened.
+  if(tmdbAuth.credential && !IS_ANDROID_TV) loadDiscoveryArt();
 }
 async function loadDiscoveryArt(){
   if(!tmdbAuth.credential)return;
@@ -491,17 +504,29 @@ async function loadHomeSections(){
   if(!tmdbAuth.credential)return;
   homeSectionsLoadedAt=Date.now();
   try{
-    const y=new Date().getFullYear();
-    const [trending,pm,ps,trm,trt,yr]=await Promise.all([
-      tmdbFetch('/trending/all/week',{}),tmdbFetch('/movie/popular',{page:1}),tmdbFetch('/tv/popular',{page:1}),tmdbFetch('/movie/top_rated',{page:1}),tmdbFetch('/tv/top_rated',{page:1}),tmdbFetch('/discover/movie',{primary_release_year:y,sort_by:'popularity.desc',include_adult:'false',page:1})
-    ]);
-    homeSections={
-      trending:(trending.results||[]).map(mapTmdb).filter(Boolean).slice(0,12),
-      popularMovies:(pm.results||[]).map(x=>mapTmdb(x,'movie')).filter(Boolean).slice(0,12),
-      popularSeries:(ps.results||[]).map(x=>mapTmdb(x,'tv')).filter(Boolean).slice(0,12),
-      topRated:dedupeTmdb([...(trm.results||[]).map(x=>mapTmdb(x,'movie')),...(trt.results||[]).map(x=>mapTmdb(x,'tv'))]).sort((a,b)=>b.rating-a.rating).slice(0,12),
-      byYear:(yr.results||[]).map(x=>mapTmdb(x,'movie')).filter(Boolean).slice(0,12)
-    };
+    if(IS_ANDROID_TV){
+      // Fast first paint: only fetch the three shelves people actually see first.
+      const [trending,pm,ps]=await Promise.all([
+        tmdbFetch('/trending/all/week',{}),tmdbFetch('/movie/popular',{page:1}),tmdbFetch('/tv/popular',{page:1})
+      ]);
+      homeSections={
+        trending:(trending.results||[]).map(mapTmdb).filter(Boolean).slice(0,8),
+        popularMovies:(pm.results||[]).map(x=>mapTmdb(x,'movie')).filter(Boolean).slice(0,8),
+        popularSeries:(ps.results||[]).map(x=>mapTmdb(x,'tv')).filter(Boolean).slice(0,8)
+      };
+    }else{
+      const y=new Date().getFullYear();
+      const [trending,pm,ps,trm,trt,yr]=await Promise.all([
+        tmdbFetch('/trending/all/week',{}),tmdbFetch('/movie/popular',{page:1}),tmdbFetch('/tv/popular',{page:1}),tmdbFetch('/movie/top_rated',{page:1}),tmdbFetch('/tv/top_rated',{page:1}),tmdbFetch('/discover/movie',{primary_release_year:y,sort_by:'popularity.desc',include_adult:'false',page:1})
+      ]);
+      homeSections={
+        trending:(trending.results||[]).map(mapTmdb).filter(Boolean).slice(0,12),
+        popularMovies:(pm.results||[]).map(x=>mapTmdb(x,'movie')).filter(Boolean).slice(0,12),
+        popularSeries:(ps.results||[]).map(x=>mapTmdb(x,'tv')).filter(Boolean).slice(0,12),
+        topRated:dedupeTmdb([...(trm.results||[]).map(x=>mapTmdb(x,'movie')),...(trt.results||[]).map(x=>mapTmdb(x,'tv'))]).sort((a,b)=>b.rating-a.rating).slice(0,12),
+        byYear:(yr.results||[]).map(x=>mapTmdb(x,'movie')).filter(Boolean).slice(0,12)
+      };
+    }
     dynamicCatalog=dedupeTmdb([...dynamicCatalog,...Object.values(homeSections).flat()]);
     if(currentView==='home'&&!searchTerm)renderHome();
   }catch(err){ homeSectionsLoadedAt=0; }
@@ -697,7 +722,8 @@ function renderCollections(){
 }
 function collectionBlock(c,manageable=false){
   const folders=c.folders||[];
-  const cards=folders.map(f=>{const art=f.coverImageUrl||f.heroBackdropUrl||c._manifestBackground||'';const count=(f.catalogSources||f.sources||[]).length||1;return `<button class="collection-folder" data-collection-folder="${esc(c.id)}|${esc(f.id)}"><div class="collection-folder-copy"><b>${esc(f.title||'Folder')}</b><small>${count} source${count===1?'':'s'}</small></div><div class="collection-folder-art">${art?`<img class="collection-cover-media" src="${esc(art)}" alt="">`:`<i></i><i></i><i></i>`}${focusGifMedia(f)}</div></button>`}).join('');
+  const visible=(IS_ANDROID_TV&&!manageable)?folders.slice(0,8):folders;
+  const cards=visible.map(f=>{const art=f.coverImageUrl||f.heroBackdropUrl||c._manifestBackground||'';const count=(f.catalogSources||f.sources||[]).length||1;return `<button class="collection-folder" data-collection-folder="${esc(c.id)}|${esc(f.id)}"><div class="collection-folder-copy"><b>${esc(f.title||'Folder')}</b><small>${count} source${count===1?'':'s'}</small></div><div class="collection-folder-art">${art?`<img class="collection-cover-media" src="${esc(art)}" alt="" loading="lazy" decoding="async">`:`<i></i><i></i><i></i>`}${focusGifMedia(f)}</div></button>`}).join('');
   return `<section class="section collection-section"><div class="section-head"><div><h3>${esc(c.title||'Collection')}</h3><p>${folders.length} folders</p></div>${manageable?`<button class="collection-delete" data-delete-collection="${esc(c.id)}">${t('deleteCollection')}</button>`:''}</div>${railShell(cards,'collection-folder-row')}</section>`;
 }
 function deleteCollection(id){
@@ -1457,11 +1483,12 @@ async function partyApplyRemoteState(state,revision,origin){if(!partySession||!s
 }
 function setAmbient(item,animate=true){
   if(!ambientBackdrop||!item?.backdrop)return clearAmbient();clearTimeout(ambientTimer);
-  const apply=()=>{ambientBackdrop.style.backgroundImage=`linear-gradient(90deg, rgba(9,9,13,.98) 0%, rgba(9,9,13,.76) 38%, rgba(9,9,13,.22) 72%, rgba(9,9,13,.72) 100%), url("${String(item.backdrop).replace(/"/g,'%22')}")`;ambientBackdrop.classList.add('visible');};
-  if(animate){ambientBackdrop.classList.remove('visible');ambientTimer=setTimeout(apply,90);}else apply();
+  let bg=item.backdrop;if(IS_ANDROID_TV&&item?.provider==='tmdb')bg=tmdbSizedUrl(bg,'w780');
+  const apply=()=>{ambientBackdrop.style.backgroundImage=`linear-gradient(90deg, rgba(9,9,13,.98) 0%, rgba(9,9,13,.76) 38%, rgba(9,9,13,.22) 72%, rgba(9,9,13,.72) 100%), url("${String(bg).replace(/"/g,'%22')}")`;ambientBackdrop.classList.add('visible');};
+  if(animate&&!IS_ANDROID_TV){ambientBackdrop.classList.remove('visible');ambientTimer=setTimeout(apply,90);}else apply();
 }
 function clearAmbient(){if(!ambientBackdrop)return;clearTimeout(ambientTimer);ambientBackdrop.classList.remove('visible');}
-function restoreAmbient(){if(currentView==='home'&&!searchTerm){const featured=allCatalog().find(x=>x.featured)||allCatalog()[0];setAmbient(featured,true);}else clearAmbient();}
+function restoreAmbient(){if(currentView==='home'&&!searchTerm){const featured=allCatalog().find(x=>x.featured)||allCatalog()[0];setAmbient(featured,!IS_ANDROID_TV);}else clearAmbient();}
 
 async function playTmdbCardTrailer(card,item){
   const key=await ensureTmdbTrailer(item); if(activePreviewCard!==card)return;
@@ -1471,11 +1498,12 @@ async function playTmdbCardTrailer(card,item){
   card.classList.add('preview-playing');
 }
 function startCardInteraction(card){
-  if(!card||activePreviewCard===card)return;if(activePreviewCard)endCardInteraction(activePreviewCard,false);activePreviewCard=card;card.classList.add('is-active');const item=itemById(card.dataset.mediaId);if(item)setAmbient(item,true);clearTimeout(previewTimer);
-  if(settings.autoPreviews&&(item?.trailer||item?.provider==='tmdb')) previewTimer=setTimeout(()=>{if(activePreviewCard!==card)return;if(item.provider==='tmdb'){playTmdbCardTrailer(card,item);return;}const video=card.querySelector('.card-trailer');if(!video)return;if(!video.src)video.src=video.dataset.trailer;video.currentTime=0;video.classList.add('playing');const p=video.play();if(p?.catch)p.catch(()=>video.classList.remove('playing'));card.classList.add('preview-playing');},Math.max(1000,(settings.previewDelay||11)*1000));
+  if(!card||activePreviewCard===card)return;if(activePreviewCard)endCardInteraction(activePreviewCard,false);activePreviewCard=card;card.classList.add('is-active');const item=itemById(card.dataset.mediaId);clearTimeout(ambientTimer);
+  if(item){if(IS_ANDROID_TV)ambientTimer=setTimeout(()=>{if(activePreviewCard===card)setAmbient(item,false);},260);else setAmbient(item,true);}clearTimeout(previewTimer);
+  if(!IS_ANDROID_TV&&settings.autoPreviews&&(item?.trailer||item?.provider==='tmdb')) previewTimer=setTimeout(()=>{if(activePreviewCard!==card)return;if(item.provider==='tmdb'){playTmdbCardTrailer(card,item);return;}const video=card.querySelector('.card-trailer');if(!video)return;if(!video.src)video.src=video.dataset.trailer;video.currentTime=0;video.classList.add('playing');const p=video.play();if(p?.catch)p.catch(()=>video.classList.remove('playing'));card.classList.add('preview-playing');},Math.max(1000,(settings.previewDelay||11)*1000));
 }
 function endCardInteraction(card,restore=true){
-  if(!card)return;clearTimeout(previewTimer);previewTimer=null;const video=card.querySelector('.card-trailer');if(video){try{video.pause();video.currentTime=0;}catch{}video.classList.remove('playing');}const host=card.querySelector('.trailer-host');if(host)host.innerHTML='';card.classList.remove('is-active','preview-playing');if(activePreviewCard===card)activePreviewCard=null;if(restore)restoreAmbient();
+  if(!card)return;clearTimeout(previewTimer);previewTimer=null;const video=card.querySelector('.card-trailer');if(video){try{video.pause();video.currentTime=0;}catch{}video.classList.remove('playing');}const host=card.querySelector('.trailer-host');if(host)host.innerHTML='';card.classList.remove('is-active','preview-playing');if(activePreviewCard===card)activePreviewCard=null;if(restore&&!IS_ANDROID_TV)restoreAmbient();
 }
 function stopAllPreviews(){if(activePreviewCard)endCardInteraction(activePreviewCard,false);clearTimeout(previewTimer);previewTimer=null;}
 function toast(title,text){const el=document.createElement('div');el.className='toast';el.innerHTML=`<b>${esc(title)}</b>${text?`<span>${esc(text)}</span>`:''}`;$('#toastRoot').appendChild(el);setTimeout(()=>el.remove(),3600);}
@@ -1527,23 +1555,57 @@ document.addEventListener('pointerover',e=>{const f=e.target.closest('.collectio
 document.addEventListener('pointerout',e=>{const f=e.target.closest('.collection-folder');if(!f)return;if(e.relatedTarget&&f.contains(e.relatedTarget))return;if(f.contains(document.activeElement))return;stopFolderFocus(f);});
 document.addEventListener('focusin',e=>{const f=e.target.closest('.collection-folder');if(f)startFolderFocus(f);});
 document.addEventListener('focusout',e=>{const f=e.target.closest('.collection-folder');if(!f)return;setTimeout(()=>{if(!f.contains(document.activeElement)&&!f.matches(':hover'))stopFolderFocus(f);},0);});
+function startPlatformFocus(tile){const img=tile?.querySelector?.('.platform-focus[data-focus-src]');if(img&&!img.getAttribute('src'))img.setAttribute('src',img.dataset.focusSrc||'');}
+document.addEventListener('focusin',e=>{const p=e.target.closest('.platform-tile');if(p)startPlatformFocus(p);});
+document.addEventListener('pointerover',e=>{const p=e.target.closest('.platform-tile');if(p)startPlatformFocus(p);});
+
+let modalFocusBefore=null,modalOpenState=false;
+function activeTvModal(){return $('#modalRoot .modal-backdrop .modal');}
+function tvScrollFocusedIntoView(el){
+  const modal=el?.closest?.('.modal');
+  if(modal){
+    const mr=modal.getBoundingClientRect(),er=el.getBoundingClientRect(),pad=70;
+    if(er.top<mr.top+pad)modal.scrollBy({top:er.top-(mr.top+pad),behavior:'auto'});
+    else if(er.bottom>mr.bottom-pad)modal.scrollBy({top:er.bottom-(mr.bottom-pad),behavior:'auto'});
+    return;
+  }
+  el?.scrollIntoView?.({behavior:'auto',block:'center',inline:'nearest'});
+}
+function syncModalFocusState(){
+  const modal=activeTvModal();
+  if(modal){
+    if(!modalOpenState){modalFocusBefore=document.activeElement;modalOpenState=true;}
+    document.body.classList.add('modal-open');
+    if(IS_ANDROID_TV&&!modal.contains(document.activeElement))requestAnimationFrame(()=>{
+      const target=modal.querySelector('[data-smart-play],.episode-card,button:not([disabled]),select:not([disabled]),input:not([disabled]),[tabindex]:not([tabindex="-1"])');
+      if(target){target.focus({preventScroll:true});tvScrollFocusedIntoView(target);}
+    });
+  }else if(modalOpenState){
+    modalOpenState=false;document.body.classList.remove('modal-open');
+    if(IS_ANDROID_TV&&modalFocusBefore?.isConnected)requestAnimationFrame(()=>modalFocusBefore.focus?.({preventScroll:true}));
+    modalFocusBefore=null;
+  }
+}
+const modalRootObserverTarget=$('#modalRoot');
+if(modalRootObserverTarget)new MutationObserver(syncModalFocusState).observe(modalRootObserverTarget,{childList:true,subtree:true});
 
 function tvFocusableElements(){
   const selector='button:not([disabled]),[tabindex]:not([tabindex="-1"]),input:not([disabled]),select:not([disabled]),a[href]';
-  return [...document.querySelectorAll(selector)].filter(el=>{
+  const modal=activeTvModal(),scope=modal||document;
+  return [...scope.querySelectorAll(selector)].filter(el=>{
     const r=el.getBoundingClientRect(),cs=getComputedStyle(el);return r.width>1&&r.height>1&&cs.visibility!=='hidden'&&cs.display!=='none'&&!el.closest('[hidden]');
   });
 }
 function tvMoveFocus(direction){
   const current=document.activeElement;const nodes=tvFocusableElements();if(!nodes.length)return false;
-  if(!current||current===document.body||!nodes.includes(current)){nodes[0].focus();nodes[0].scrollIntoView({block:'center',inline:'nearest'});return true;}
+  if(!current||current===document.body||!nodes.includes(current)){const target=nodes.find(x=>x.matches('[data-smart-play]'))||nodes[0];target.focus({preventScroll:true});tvScrollFocusedIntoView(target);return true;}
   const a=current.getBoundingClientRect(),ax=a.left+a.width/2,ay=a.top+a.height/2;let best=null,bestScore=Infinity;
   for(const el of nodes){if(el===current)continue;const b=el.getBoundingClientRect(),bx=b.left+b.width/2,by=b.top+b.height/2,dx=bx-ax,dy=by-ay;
     if(direction==='down'&&dy<=8)continue;if(direction==='up'&&dy>=-8)continue;if(direction==='right'&&dx<=8)continue;if(direction==='left'&&dx>=-8)continue;
-    const primary=(direction==='down'||direction==='up')?Math.abs(dy):Math.abs(dx),cross=(direction==='down'||direction==='up')?Math.abs(dx):Math.abs(dy);const score=primary+cross*2.2;
+    const primary=(direction==='down'||direction==='up')?Math.abs(dy):Math.abs(dx),cross=(direction==='down'||direction==='up')?Math.abs(dx):Math.abs(dy);const score=primary+cross*1.65;
     if(score<bestScore){bestScore=score;best=el;}
   }
-  if(!best)return false;best.focus({preventScroll:true});best.scrollIntoView({behavior:settings.motion?'smooth':'auto',block:'center',inline:'nearest'});return true;
+  if(!best)return false;best.focus({preventScroll:true});tvScrollFocusedIntoView(best);return true;
 }
 function handleTvNavigationKey(e){
   if(!IS_ANDROID_TV||e.defaultPrevented)return;
@@ -1557,7 +1619,7 @@ function handleTvNavigationKey(e){
   if(rail&&(key==='ArrowLeft'||key==='ArrowRight'))return;
   if(tvMoveFocus(key.replace('Arrow','').toLowerCase())){e.preventDefault();e.stopImmediatePropagation();}
 }
-if(IS_ANDROID_TV){document.body.classList.add('tv-mode');document.addEventListener('keydown',handleTvNavigationKey,true);}
+if(IS_ANDROID_TV){document.body.classList.add('tv-mode','tv-fast');document.addEventListener('keydown',handleTvNavigationKey,true);}
 window.handleMiFlixTvBack=()=>{if($('#modalRoot').innerHTML){if(activePlayerContext?.nativeAndroid)return true;if($('#videoPlayer'))closePlayerModal();else{$('#modalRoot').innerHTML='';restoreAmbient();}return true;}if(backAction){goBack();return true;}setView('home');return true;};
 
 document.addEventListener('keydown',e=>{
@@ -1595,8 +1657,13 @@ function bindCloudSettings(){const url=$('#cloudUrl'),key=$('#cloudKey');const s
 function onNativeState(raw){let st=raw;try{if(typeof raw==='string')st=JSON.parse(raw);}catch{return;}if(!st)return;nativePlaybackState={position:Number(st.position||0),duration:Number(st.duration||0),playing:!!st.playing};const ctx=activePlayerContext;if(!ctx?.nativeAndroid)return;const key=playerProgressKey(ctx.item,ctx.season,ctx.episode),showKey=ctx.item.id;if(st.event==='closed'){activePlayerContext=null;return;}if(st.event==='error'){toast('MiFlix Player',st.message||t('playerMayFail'));return;}if(nativePlaybackState.duration>0){const row={percent:+Math.min(100,(nativePlaybackState.position/nativePlaybackState.duration)*100).toFixed(1),position:nativePlaybackState.position,duration:nativePlaybackState.duration,updatedAt:Date.now(),season:ctx.season,episode:ctx.episode};progress[key]=row;progress[showKey]=row;if(Math.floor(nativePlaybackState.position)%5===0)saveProgress();}partySendPlaybackState(st.event||'tick',st.event&&st.event!=='tick');if(st.event==='ended'){progress[key]={percent:100,updatedAt:Date.now(),season:ctx.season,episode:ctx.episode};progress[showKey]=progress[key];saveProgress();if(ctx.item.type==='series'&&settings.autoplayNext&&(!partySession||partySession.role==='host'))playNextEpisode(ctx.item,ctx.stream,ctx.season,ctx.episode);}}
 window.onMiFlixNativePlayerState=onNativeState;
 
-applySettings();setView('home');probeNativePlayer();updateProfileChip();ensurePersonalDefaultAddon().then(ok=>{if(ok&&currentView==='addons')renderAddons();}).catch(()=>{});if(partySession)startPartyPolling();
-// Refresh stale TMDB data quietly (12h) when credentials already exist.
-if(tmdbAuth.credential && (!tmdbLastSync || Date.now()-tmdbLastSync>12*60*60*1000)) setTimeout(()=>refreshTmdbCatalog(false),500);
-if(tmdbAuth.credential) setTimeout(()=>loadHomeSections(),900);
-if(cloudSession?.refresh_token||cloudSession?.access_token) setTimeout(()=>cloudPullAll(false).catch(()=>{}),1300);
+applySettings();setView('home');
+if(IS_ANDROID_TV){nativePlayerAvailable=true;mediaEngineStatus={ok:true,nativeAndroid:true};}else probeNativePlayer();
+updateProfileChip();
+// Do not compete with the first TV paint for bandwidth. Personal add-ons/cloud
+// bootstrap a moment later while the user can already navigate the home screen.
+setTimeout(()=>ensurePersonalDefaultAddon().then(ok=>{if(ok&&currentView==='addons')renderAddons();}).catch(()=>{}),IS_ANDROID_TV?2200:0);
+if(partySession)setTimeout(startPartyPolling,IS_ANDROID_TV?2600:0);
+// Refresh the large cached TMDB catalog quietly. Home shelves already load on demand.
+if(tmdbAuth.credential && (!tmdbLastSync || Date.now()-tmdbLastSync>12*60*60*1000)) setTimeout(()=>refreshTmdbCatalog(false),IS_ANDROID_TV?12000:500);
+if(cloudSession?.refresh_token||cloudSession?.access_token) setTimeout(()=>cloudPullAll(false).catch(()=>{}),IS_ANDROID_TV?3400:1300);

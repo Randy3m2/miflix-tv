@@ -535,3 +535,51 @@ body.tv-mode .hold-hint{font-size:11px}
 body.tv-mode .episode-card{min-width:360px}
 body.tv-mode .profile-chip{min-height:48px}
 @media (min-width:1200px){body.tv-mode .hero{min-height:430px}body.tv-mode .hero h2{font-size:58px}}
+
+/* ===== MiFlix TV V1.9.6: fast-path rendering + real modal focus ===== */
+body.modal-open{overflow:hidden!important}
+body.tv-mode.modal-open .main-content,
+body.tv-mode.modal-open .sidebar{pointer-events:none}
+body.tv-mode.modal-open #modalRoot,
+body.tv-mode.modal-open #modalRoot *{pointer-events:auto}
+body.tv-mode .modal-backdrop{backdrop-filter:none!important;background:rgba(0,0,0,.84)!important;animation:none!important;padding:18px}
+body.tv-mode .modal{width:min(1500px,97vw)!important;max-height:94vh!important;overscroll-behavior:contain;scroll-behavior:auto!important;animation:none!important;box-shadow:0 18px 55px rgba(0,0,0,.45)!important;scrollbar-width:none}
+body.tv-mode .modal::-webkit-scrollbar{display:none}
+body.tv-mode .detail-hero{min-height:360px;padding:42px 48px}
+body.tv-mode .detail-body{padding:24px 48px 42px}
+body.tv-mode .detail-content{max-width:820px}
+body.tv-mode .detail-content h2{font-size:clamp(38px,4.4vw,62px)}
+
+/* Expensive blur/shadow effects are disproportionately slow in Android WebView. */
+body.tv-fast .sidebar,
+body.tv-fast .topbar,
+body.tv-fast .poster-type,
+body.tv-fast .favorite-badge,
+body.tv-fast .rail-nav,
+body.tv-fast .episode-badge,
+body.tv-fast .platform-label,
+body.tv-fast .skip-intro-btn,
+body.tv-fast .player-round,
+body.tv-fast .player-loading,
+body.tv-fast .player-popover,
+body.tv-fast .player-start-overlay{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+body.tv-fast .topbar{background:rgba(9,9,13,.96)!important}
+body.tv-fast .media-card,
+body.tv-fast .episode-card,
+body.tv-fast .platform-tile,
+body.tv-fast .collection-folder,
+body.tv-fast .category-tile,
+body.tv-fast .year-tile,
+body.tv-fast .btn,
+body.tv-fast .nav-item{transition-duration:.07s!important}
+body.tv-fast .media-card:focus-visible,
+body.tv-fast .episode-card:focus-visible,
+body.tv-fast .platform-tile:focus-visible,
+body.tv-fast .collection-folder:focus-visible{transform:scale(1.025)!important;box-shadow:0 10px 22px rgba(0,0,0,.42),0 0 0 3px rgba(var(--accent-rgb),.9)!important}
+body.tv-fast .hero{box-shadow:none!important}
+body.tv-fast .settings-panel{box-shadow:none!important}
+body.tv-fast .ambient-backdrop{transition:none!important}
+body.tv-fast .rail-nav{display:none!important}
+body.tv-fast .platform-focus:not([src]){display:none}
+body.tv-fast .platform-fallback{font-size:27px;font-weight:850;letter-spacing:-.8px;color:#f4f4f6}
+body.tv-fast .poster-title{font-size:16px}
