@@ -1,15 +1,13 @@
-MiFlix Android TV V1.9.4
+MiFlix Android TV V1.9.5
 
-This build packages the MiFlix V1.9.4 interface for Android TV and uses Android Media3 / ExoPlayer for playback.
+Main changes:
+- Better D-pad navigation
+- TV-friendly Settings layout
+- Splash screen
+- TextureView native video surface
+- Media3 decoder fallback
+- TV Compatibility Mode for safer autoplay source selection
+- Supabase prefilled
+- TMDB + configured Torrentio/TorBox injected with GitHub Actions secrets
 
-TEST ORDER
-1) Open app and check D-pad navigation.
-2) Configure TMDB + add-ons locally.
-3) Configure Supabase Project URL + publishable key.
-4) Sign in with the same MiFlix account used on PC.
-5) Sync now and confirm profiles / My List / Continue Watching.
-6) Play a movie and a series episode.
-7) Test audio tracks and subtitles in the native TV player.
-8) Test Watch Party join by code on the same LAN.
-
-Private Torrentio/TorBox URLs remain local to each device.
+See README.md and BUILD_APK.md.

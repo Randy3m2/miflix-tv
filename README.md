@@ -1,28 +1,33 @@
-# MiFlix Android TV V1.9.4
+# MiFlix Android TV V1.9.5
 
-First Android TV test build of the MiFlix V1.9.4 web UI with a native Android TV player.
+Android TV test build focused on remote-control navigation and native playback reliability.
 
-## Included
-- Android TV launcher app (`com.miflix.tv`)
-- MiFlix V1.9.4 UI bundled locally in a WebView
-- Native Android Media3 / ExoPlayer playback
-- External subtitle URLs passed to Media3
-- Preferred audio/subtitle language support
-- Remote-friendly Play/Pause/Seek via Media3 PlayerView
-- Supabase account + sync UI from MiFlix V1.9.4
-- Profiles, My List, Continue Watching, Collections and Add-ons
-- Watch Party LAN discovery bridge
-- GitHub Actions APK builder
+## What changed
 
-## First TV test
-1. Install the APK on Android TV.
-2. Open MiFlix.
-3. Add the same TMDB credential and add-ons used on PC (private add-on tokens remain local by design).
-4. In Settings > Account & sync, enter the same Supabase URL + publishable key and sign in with the same account.
-5. Press Sync now. Your profiles, My List and playback progress should be restored.
-6. Test a movie/episode. Playback is handled by native Media3/ExoPlayer, not the Windows FFmpeg browser bridge.
+- D-pad spatial navigation throughout the UI.
+- Up/Down no longer gets trapped by sliders such as Rounding/Blur/Intro length.
+- TV settings layout is slimmer and easier to navigate from a couch.
+- Native MiFlix splash screen on launch.
+- Native Media3/ExoPlayer playback now uses a TextureView instead of SurfaceView to avoid black video when the player is layered over the MiFlix WebView.
+- Media3 decoder fallback is enabled.
+- TV Compatibility Mode is enabled by default and prefers 1080p/H.264 sources over Dolby Vision, AV1 and HEVC when possible.
+- Android Back button closes the native player or navigates back inside MiFlix.
+- Supabase URL and publishable key are prefilled.
+- TMDB and personal Torrentio/TorBox defaults can be injected securely during the GitHub Actions build with repository secrets.
+
+## Private build defaults
+
+Do **not** paste a TorBox API key or TMDB Read Access Token directly into a public GitHub repository.
+
+Create these repository Actions secrets instead:
+
+- `MIFLIX_TMDB_TOKEN`
+- `MIFLIX_TORRENTIO_MANIFEST`
+
+The build workflow writes them into the APK at build time. They are not committed into the source repository.
+
+Note: any secret embedded in an APK can still be extracted by someone who obtains the APK. This setup prevents accidental exposure in the public source code, but a truly private credential should ideally be fetched after login from your own protected backend.
 
 ## Build
-The repo includes `.github/workflows/build-tv-apk.yml`.
-Push the project to GitHub and run **Actions > Build MiFlix Android TV APK > Run workflow**.
-The workflow uploads `MiFlix-TV-v1.9.4.apk` as an artifact.
+
+See `BUILD_APK.md`.

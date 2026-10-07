@@ -30,6 +30,7 @@ import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.TrackSelectionParameters;
 import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.ui.PlayerView;
 
 import org.json.JSONArray;
@@ -50,6 +51,7 @@ public class MainActivity extends AppCompatActivity {
     private ProgressBar playerLoading;
     private TextView playerTitle;
     private TextView playerClose;
+    private FrameLayout splashLayer;
     private ExoPlayer player;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private boolean playerVisible = false;
@@ -89,15 +91,21 @@ public class MainActivity extends AppCompatActivity {
         ws.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         ws.setAllowFileAccessFromFileURLs(true);
         ws.setAllowUniversalAccessFromFileURLs(true);
-        ws.setUserAgentString(ws.getUserAgentString() + " MiFlixTV/1.9.4");
+        ws.setUserAgentString(ws.getUserAgentString() + " MiFlixTV/1.9.5");
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
-        webView.setWebViewClient(new WebViewClient());
+        webView.setWebViewClient(new WebViewClient() {
+            @Override public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                mainHandler.postDelayed(() -> hideSplash(), 550);
+            }
+        });
         webView.setWebChromeClient(new WebChromeClient());
         webView.addJavascriptInterface(new MiFlixBridge(), "MiFlixAndroid");
         root.addView(webView, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         buildNativePlayer();
+        buildSplash();
         webView.loadUrl("file:///android_asset/miflix/index.html");
     }
 
@@ -107,7 +115,7 @@ public class MainActivity extends AppCompatActivity {
         playerLayer.setVisibility(View.GONE);
         root.addView(playerLayer, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
-        playerView = new PlayerView(this);
+        playerView = (PlayerView) getLayoutInflater().inflate(R.layout.player_view_tv, playerLayer, false);
         playerView.setBackgroundColor(Color.BLACK);
         playerView.setUseController(true);
         playerView.setControllerAutoShow(true);
@@ -117,6 +125,8 @@ public class MainActivity extends AppCompatActivity {
         playerView.setShowFastForwardButton(true);
         playerView.setShowSubtitleButton(true);
         playerView.setKeepScreenOn(true);
+        playerView.setKeepContentOnPlayerReset(true);
+        playerView.setShutterBackgroundColor(Color.TRANSPARENT);
         playerLayer.addView(playerView, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         playerLoading = new ProgressBar(this);
@@ -156,9 +166,68 @@ public class MainActivity extends AppCompatActivity {
         playerLayer.addView(playerClose, closeParams);
     }
 
+    private void buildSplash() {
+        splashLayer = new FrameLayout(this);
+        splashLayer.setBackgroundColor(Color.rgb(5, 5, 7));
+        splashLayer.setClickable(true);
+        splashLayer.setFocusable(true);
+
+        TextView logo = new TextView(this);
+        logo.setText("M");
+        logo.setTextColor(Color.WHITE);
+        logo.setTextSize(42);
+        logo.setGravity(Gravity.CENTER);
+        logo.setTypeface(logo.getTypeface(), android.graphics.Typeface.BOLD);
+        GradientDrawable logoBg = new GradientDrawable(
+                GradientDrawable.Orientation.TL_BR,
+                new int[]{0xFF8B5CF6, 0xFF5B39D8});
+        logoBg.setCornerRadius(dp(28));
+        logo.setBackground(logoBg);
+        FrameLayout.LayoutParams logoParams = new FrameLayout.LayoutParams(dp(112), dp(112));
+        logoParams.gravity = Gravity.CENTER;
+        logoParams.setMargins(0, 0, 0, dp(34));
+        splashLayer.addView(logo, logoParams);
+
+        TextView title = new TextView(this);
+        title.setText("MiFlix");
+        title.setTextColor(Color.WHITE);
+        title.setTextSize(28);
+        title.setGravity(Gravity.CENTER);
+        title.setTypeface(title.getTypeface(), android.graphics.Typeface.BOLD);
+        FrameLayout.LayoutParams titleParams = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        titleParams.gravity = Gravity.CENTER;
+        titleParams.setMargins(0, dp(132), 0, 0);
+        splashLayer.addView(title, titleParams);
+
+        TextView subtitle = new TextView(this);
+        subtitle.setText("Your media, one place");
+        subtitle.setTextColor(0xFF9A9DA8);
+        subtitle.setTextSize(13);
+        subtitle.setGravity(Gravity.CENTER);
+        FrameLayout.LayoutParams subParams = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        subParams.gravity = Gravity.CENTER;
+        subParams.setMargins(0, dp(190), 0, 0);
+        splashLayer.addView(subtitle, subParams);
+
+        root.addView(splashLayer, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        splashLayer.bringToFront();
+    }
+
+    private void hideSplash() {
+        if (splashLayer == null || splashLayer.getVisibility() != View.VISIBLE) return;
+        splashLayer.animate().alpha(0f).setDuration(320).withEndAction(() -> {
+            splashLayer.setVisibility(View.GONE);
+            splashLayer.setAlpha(1f);
+            webView.requestFocus();
+        }).start();
+    }
+
     private void ensurePlayer() {
         if (player != null) return;
-        player = new ExoPlayer.Builder(this).build();
+        DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(this)
+                .setEnableDecoderFallback(true);
+        player = new ExoPlayer.Builder(this, renderersFactory).build();
+        player.setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT);
         player.setSeekBackIncrementMs(10_000);
         player.setSeekForwardIncrementMs(10_000);
         playerView.setPlayer(player);
@@ -367,8 +436,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (playerVisible && keyCode == KeyEvent.KEYCODE_BACK) {
-            closeNativePlayer(true);
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            if (playerVisible) {
+                closeNativePlayer(true);
+            } else if (webView != null) {
+                webView.evaluateJavascript("window.handleMiFlixTvBack&&window.handleMiFlixTvBack();", null);
+            }
             return true;
         }
         return super.onKeyDown(keyCode, event);

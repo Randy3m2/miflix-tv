@@ -1,4 +1,4 @@
-/* MiFlix V1.9.4 - personal media center prototype.
+/* MiFlix V1.9.5 - personal media center prototype.
    V1.2 added:
    - Live TMDB metadata/catalog/search (user supplies their own API key/read token)
    - English/Spanish UI + TMDB language switching
@@ -10,7 +10,9 @@
    - TMDB → IMDb mapping for stream add-ons
 */
 
-const APP_VERSION = '1.9.4';
+const APP_VERSION = '1.9.5';
+const PERSONAL_DEFAULTS = Object.freeze(window.MIFLIX_DEFAULTS || {});
+const IS_ANDROID_TV = (()=>{try{return window.MiFlixAndroid?.platform?.()==='android-tv';}catch{return false;}})();
 const TMDB_API = 'https://api.themoviedb.org/3';
 const TMDB_IMG = 'https://image.tmdb.org/t/p/';
 const TMDB_LOGO = 'https://www.themoviedb.org/assets/2/v4/logos/v2/blue_square_1-5bdc75aaebeb75dc7ae79426ddd9be3b2be1e342510f8202baf6bffa71d7f5c4.svg';
@@ -102,7 +104,7 @@ const DEFAULT_SETTINGS = {
   theme:'nuvio', accent:'#8b5cf6', cardSize:'medium', radius:18, density:'comfortable', blur:18,
   motion:true, showRatings:true, showYear:true, showDescription:true, autoPreviews:true, previewDelay:11,
   language:'es', autoFullscreen:true, autoplayFirst:true, autoplayNext:true, skipIntro:true, introSkipSeconds:90,
-  preferredAudio:'', preferredSubtitle:'es', watchRegion:'DO', playerEngine:'builtin', externalPlayer:'mpv', watchPartyRelayUrl:''
+  preferredAudio:'', preferredSubtitle:'es', watchRegion:'DO', playerEngine:'builtin', externalPlayer:'mpv', tvCompatibilityMode:true, watchPartyRelayUrl:''
 };
 
 const BUILTIN_ADDONS = [
@@ -131,7 +133,7 @@ const I18N = {
     tmdbNotice:'Este producto usa la API de TMDB pero no está respaldado ni certificado por TMDB.',tmdbNoticeEn:'This product uses the TMDB API but is not endorsed or certified by TMDB.',
     appearanceRestored:'Apariencia restaurada',appearanceRestoredText:'Volvimos a los valores predeterminados de MiFlix V1.9.3.',addedList:'Añadido a Mi lista',removedList:'Quitado de Mi lista',progressSaved:'Progreso guardado',progressSavedText:'Marcado temporalmente en 50% para probar Continuar viendo.',
     noTrailer:'Trailer no disponible',demoAddonDesc:'Add-on de prueba con videos públicos de demostración y streams directos.',demoMovieDesc:'Contenido de demostración para verificar que un add-on puede inyectar catálogo y reproducir un stream directo.',
-    stremioCompatible:'Compatible con Stremio',stremioAddon:'Add-on Stremio',streamAddon:'Add-on de streams',loadSources:'Buscar fuentes',refreshSources:'Actualizar fuentes',loadingSources:'Buscando fuentes…',sourceCount:'fuentes encontradas',noStreamAddons:'No hay add-ons de streams instalados',noStreamAddonsText:'Instala un add-on compatible con Stremio desde la sección Add-ons.',noCompatibleStreams:'No se encontraron fuentes reproducibles',noCompatibleStreamsText:'El add-on respondió, pero no devolvió URLs directas compatibles con esta versión del player.',sourceLookupFailed:'No se pudieron consultar las fuentes',noImdbId:'No encontramos IMDb ID para este título.',season:'Temporada',episode:'Episodio',seriesSourceHint:'Elige temporada y episodio antes de buscar fuentes.',addonHost:'Servidor',protocol:'Protocolo',playable:'Reproducible',torrentOnly:'Torrent sin URL directa',hideSecret:'La URL configurada se guarda localmente y no se muestra completa.',pasteStremio:'También puedes pegar una URL de manifest de Stremio (https://…/manifest.json o stremio://…).',stremioInstalled:'Add-on Stremio instalado',stremioInstalledText:'Ya puede responder a búsquedas de fuentes para títulos TMDB.',playerMayFail:'MiFlix intentará normalizar audio y contenedor con el motor multimedia integrado. Puedes usar un reproductor externo cuando prefieras.',
+    stremioCompatible:'Compatible con Stremio',stremioAddon:'Add-on Stremio',streamAddon:'Add-on de streams',loadSources:'Buscar fuentes',refreshSources:'Actualizar fuentes',loadingSources:'Buscando fuentes…',sourceCount:'fuentes encontradas',noStreamAddons:'No hay add-ons de streams instalados',noStreamAddonsText:'Instala un add-on compatible con Stremio desde la sección Add-ons.',noCompatibleStreams:'No se encontraron fuentes reproducibles',noCompatibleStreamsText:'El add-on respondió, pero no devolvió URLs directas compatibles con esta versión del player.',sourceLookupFailed:'No se pudieron consultar las fuentes',noImdbId:'No encontramos IMDb ID para este título.',season:'Temporada',episode:'Episodio',seriesSourceHint:'Elige temporada y episodio antes de buscar fuentes.',addonHost:'Servidor',protocol:'Protocolo',playable:'Reproducible',torrentOnly:'Torrent sin URL directa',hideSecret:'La URL configurada se guarda localmente y no se muestra completa.',pasteStremio:'También puedes pegar una URL de manifest de Stremio (https://…/manifest.json o stremio://…).',stremioInstalled:'Add-on Stremio instalado',stremioInstalledText:'Ya puede responder a búsquedas de fuentes para títulos TMDB.',playerMayFail:'MiFlix intentará normalizar audio y contenedor con el motor multimedia integrado. Puedes usar un reproductor externo cuando prefieras.',tvCompatibility:'Modo compatibilidad TV',tvCompatibilityHelp:'Prioriza 1080p/H.264 y evita Dolby Vision, AV1 o HEVC cuando sea posible para reducir pantallas negras en Android TV.',
     collectionsTitle:'Colecciones',collectionsIntro:'MiFlix puede importar colecciones compatibles con el formato de Nuvio y abrir catálogos desde add-ons Stremio o desde TMDB.',nuvioCommunity:'Importar Nuvio Community',importCollection:'Importar JSON',collectionUrl:'URL de colección',collectionInstalled:'Colección importada',collectionFailed:'No se pudo importar la colección',collectionNeedsAddon:'Esta carpeta usa un add-on que no está instalado',collectionEmpty:'No hay contenido disponible para esta carpeta',platforms:'Plataformas',browseCategories:'Explorar categorías',trendingNow:'Tendencias',popularMovies:'Películas populares',popularSeries:'Series populares',topRated:'Mejor valoradas',moviesByYear:'Películas por año',popularOn:'Popular en',top10Tmdb:'Top 10 por popularidad TMDB',action:'Acción',comedy:'Comedia',horror:'Terror',animation:'Animación',documentary:'Documental',scifi:'Ciencia ficción',drama:'Drama',crime:'Crimen',family:'Familiar',playerPlayback:'Reproducción',autoplayFirst:'Autoplay first link',autoplayFirstHelp:'Un toque en Reproducir abre automáticamente la primera fuente disponible. Mantén Reproducir presionado 1 segundo para Play Manually.',autoplayNext:'Autoplay next episode',autoplayNextHelp:'Al terminar un episodio busca el siguiente y trata de mantener el mismo binge group/fuente.',fullscreenPlayback:'Abrir reproducción en pantalla completa',skipIntro:'Mostrar Skip Intro',introLength:'Final estimado del intro',seconds:'segundos',preferredAudio:'Audio preferido',preferredSubtitle:'Subtítulo preferido',audioTracks:'Audio',subtitles:'Subtítulos',off:'Desactivados',defaultTrack:'Predeterminado',trackUnavailable:'El navegador no expone múltiples pistas de audio para este stream.',subtitleNone:'Sin subtítulos',skipIntroButton:'Saltar intro',nextEpisode:'Siguiente episodio',playingNext:'Reproduciendo siguiente episodio…',playManually:'Play Manually',chooseSource:'Selecciona una fuente',findingFirst:'Buscando la primera fuente…',noPlayableSource:'No hay una fuente reproducible disponible.',collectionSourceMissing:'Falta el add-on requerido para esta fuente.',watchRegion:'Región de plataformas',regionHelp:'Se usa para disponibilidad de plataformas en TMDB. Ej.: DO, US, ES.',nuvioFormat:'Formato de colecciones Nuvio',communityNote:'La colección comunitaria usa fuentes de AIO Metadata cuando están disponibles; MiFlix también resuelve varios catálogos TMDB comunes de forma nativa.',top10Note:'Los Top 10 nativos son por popularidad TMDB, no rankings oficiales diarios de cada plataforma.',audioBrowserNote:'El reproductor integrado usa la interfaz de MiFlix. Con FFmpeg instalado puede normalizar audio/contenedor; también puedes elegir MPV, VLC o Windows como reproductor externo.',manualSource:'Selección manual',loadingCollection:'Cargando colección…',openCollection:'Abrir',noCollections:'No hay colecciones importadas todavía.',installCollectionHelp:'Puedes usar el JSON de colecciones de Nuvio directamente.',year:'Año',back:'Volver',nativePlayer:'Player nativo (MPV)',browserPlayer:'Player del navegador',playerEngine:'Motor de reproducción',nativePlayerHelp:'En Windows usamos MPV para codecs, audio y subtítulos más confiables. ExoPlayer se reservará para Android/Android TV.',nativeHostMissing:'MPV no está disponible. MiFlix usará el player del navegador.',nativeOpening:'Abriendo player nativo…',nativeControls:'MPV: A cambia audio · S cambia subtítulos · V muestra/oculta subtítulos',manifestDetected:'Manifest detectado',manifestCollectionAdded:'Se instaló el add-on y sus catálogos se agregaron a Colecciones.',carouselPrev:'Anterior',carouselNext:'Siguiente',deleteCollection:'Eliminar colección',deleteCollectionConfirm:'¿Eliminar esta colección de MiFlix?',collectionDeleted:'Colección eliminada',kaptainCollection:'Importar Kaptain/Nuvio',kaptainHelp:'Colección comunitaria con portadas y GIFs de enfoque estilo Nuvio.',episodes:'Episodios',episodeLoading:'Cargando episodios…',noEpisodes:'No encontramos episodios para esta temporada.',resume:'Reanudar',
     builtInPlayer:'Reproductor integrado MiFlix',externalPlayerMode:'Reproductor externo',externalPlayerChoice:'Reproductor externo',externalPlayerHelp:'Puedes abrir el stream en MPV, VLC o el reproductor predeterminado de Windows cuando quieras.',builtInPlayerHelp:'Player integrado estilo Nuvio. Cuando FFmpeg está disponible, MiFlix normaliza el audio para mejorar compatibilidad con MKV/HEVC.',mpvPlayer:'MPV',vlcPlayer:'VLC',systemPlayer:'Predeterminado de Windows',mediaEngineReady:'Motor multimedia listo',mediaEngineMissing:'FFmpeg no está disponible; el player integrado usará reproducción directa.',preparingPlayback:'Preparando reproducción…',switchingAudio:'Cambiando pista de audio…',noExtraAudio:'No se detectaron pistas de audio adicionales.',playerBack:'Volver',playerOptions:'Opciones',playerSpeed:'Velocidad',openExternal:'Abrir externamente',playEpisodeNow:'Reproducir episodio',
     profiles:'Perfiles',profile:'Perfil',mainProfile:'Principal',addProfile:'Agregar perfil',switchProfile:'Cambiar perfil',profileNameLabel:'Nombre del perfil',shareMainSetup:'Compartir configuración del perfil principal',shareMainSetupHelp:'Comparte TMDB, add-ons, colecciones, apariencia y reproducción. Mi lista e historial siguen separados.',deleteProfile:'Eliminar perfil',deleteProfileConfirm:'¿Eliminar este perfil y su historial local?',profileCreated:'Perfil creado',profileDeleted:'Perfil eliminado',watchParty:'Watch Party',partyIntro:'Crea una sesión y mantén sincronizados el contenido, play, pause y posición hasta que salgas.',createParty:'Crear sesión',joinParty:'Unirse',joinCode:'Código o invitación',partyCode:'Código',partyInvite:'Invitación',copyInvite:'Copiar invitación',leaveParty:'Salir de la sesión',endParty:'Finalizar sesión',partyHost:'Host',partyGuest:'Invitado',partyParticipants:'Participantes',partyWaiting:'Esperando contenido…',partyActive:'Sesión activa',partyLan:'LAN / misma red',partyRemote:'Relay remoto',partyMode:'Modo',partyRelayUrl:'URL del relay remoto',partyRelayHelp:'Opcional. Sin relay, Watch Party funciona dentro de la misma red local. Incluimos un Cloudflare Worker listo para desplegar.',allowGuestControls:'Permitir controles de invitados',partyJoined:'Te uniste al Watch Party',partyCreated:'Watch Party creado',partyLeft:'Saliste del Watch Party',partyNoSource:'El contenido cambió, pero este perfil no encontró una fuente reproducible.',partySyncing:'Sincronizando con el host…',partyNeedEngine:'El servicio local de MiFlix debe estar activo para Watch Party.',partySameNetwork:'Comparte el QR o el código. Sin relay configurado, los invitados deben estar en la misma red.',partyQr:'QR de invitación',copyCode:'Copiar código',builtInCompat:'Compatibilidad del player',builtInCompatHelp:'MiFlix usa FFmpeg para entregar H.264 + AAC al player integrado cuando el stream original no es compatible.',playbackStarting:'Iniciando video…',clickToStart:'Haz clic para iniciar',    demoUsing:'Usando catálogo demo local',tmdbUsing:'Usando catálogo TMDB',tmdbCache:'TMDB cacheado',aboutData:'Datos y créditos'
@@ -154,7 +156,7 @@ const I18N = {
     tmdbNotice:'This product uses the TMDB API but is not endorsed or certified by TMDB.',tmdbNoticeEn:'This product uses the TMDB API but is not endorsed or certified by TMDB.',
     appearanceRestored:'Appearance restored',appearanceRestoredText:'MiFlix V1.9.3 default appearance is back.',addedList:'Added to My list',removedList:'Removed from My list',progressSaved:'Progress saved',progressSavedText:'Temporarily marked at 50% to test Continue Watching.',
     noTrailer:'Trailer unavailable',demoAddonDesc:'Test add-on with public demo videos and direct streams.',demoMovieDesc:'Demo content to verify that an add-on can inject catalog items and play a direct stream.',
-    stremioCompatible:'Stremio compatible',stremioAddon:'Stremio add-on',streamAddon:'Stream add-on',loadSources:'Find sources',refreshSources:'Refresh sources',loadingSources:'Finding sources…',sourceCount:'sources found',noStreamAddons:'No stream add-ons installed',noStreamAddonsText:'Install a Stremio-compatible add-on from the Add-ons section.',noCompatibleStreams:'No playable sources found',noCompatibleStreamsText:'The add-on responded, but it did not return direct URLs compatible with this player version.',sourceLookupFailed:'Could not query sources',noImdbId:'No IMDb ID was found for this title.',season:'Season',episode:'Episode',seriesSourceHint:'Choose a season and episode before finding sources.',addonHost:'Server',protocol:'Protocol',playable:'Playable',torrentOnly:'Torrent without direct URL',hideSecret:'The configured URL is stored locally and is not displayed in full.',pasteStremio:'You can also paste a Stremio manifest URL (https://…/manifest.json or stremio://…).',stremioInstalled:'Stremio add-on installed',stremioInstalledText:'It can now answer source lookups for TMDB titles.',playerMayFail:'MiFlix will try to normalize audio and container with the built-in media engine. You can use an external player whenever you prefer.',
+    stremioCompatible:'Stremio compatible',stremioAddon:'Stremio add-on',streamAddon:'Stream add-on',loadSources:'Find sources',refreshSources:'Refresh sources',loadingSources:'Finding sources…',sourceCount:'sources found',noStreamAddons:'No stream add-ons installed',noStreamAddonsText:'Install a Stremio-compatible add-on from the Add-ons section.',noCompatibleStreams:'No playable sources found',noCompatibleStreamsText:'The add-on responded, but it did not return direct URLs compatible with this player version.',sourceLookupFailed:'Could not query sources',noImdbId:'No IMDb ID was found for this title.',season:'Season',episode:'Episode',seriesSourceHint:'Choose a season and episode before finding sources.',addonHost:'Server',protocol:'Protocol',playable:'Playable',torrentOnly:'Torrent without direct URL',hideSecret:'The configured URL is stored locally and is not displayed in full.',pasteStremio:'You can also paste a Stremio manifest URL (https://…/manifest.json or stremio://…).',stremioInstalled:'Stremio add-on installed',stremioInstalledText:'It can now answer source lookups for TMDB titles.',playerMayFail:'MiFlix will try to normalize audio and container with the built-in media engine. You can use an external player whenever you prefer.',tvCompatibility:'TV compatibility mode',tvCompatibilityHelp:'Prioritizes 1080p/H.264 and avoids Dolby Vision, AV1 or HEVC when possible to reduce black-screen playback on Android TV.',
     collectionsTitle:'Collections',collectionsIntro:'MiFlix can import collections compatible with the Nuvio format and open catalogs from Stremio add-ons or TMDB.',nuvioCommunity:'Import Nuvio Community',importCollection:'Import JSON',collectionUrl:'Collection URL',collectionInstalled:'Collection imported',collectionFailed:'Could not import collection',collectionNeedsAddon:'This folder uses an add-on that is not installed',collectionEmpty:'No content is available for this folder',platforms:'Platforms',browseCategories:'Browse categories',trendingNow:'Trending now',popularMovies:'Popular movies',popularSeries:'Popular series',topRated:'Top rated',moviesByYear:'Movies by year',popularOn:'Popular on',top10Tmdb:'Top 10 by TMDB popularity',action:'Action',comedy:'Comedy',horror:'Horror',animation:'Animation',documentary:'Documentary',scifi:'Science fiction',drama:'Drama',crime:'Crime',family:'Family',playerPlayback:'Playback',autoplayFirst:'Autoplay first link',autoplayFirstHelp:'A tap on Play automatically opens the first available source. Hold Play for 1 second to Play Manually.',autoplayNext:'Autoplay next episode',autoplayNextHelp:'When an episode ends, MiFlix finds the next one and tries to keep the same binge group/source.',fullscreenPlayback:'Open playback fullscreen',skipIntro:'Show Skip Intro',introLength:'Estimated intro end',seconds:'seconds',preferredAudio:'Preferred audio',preferredSubtitle:'Preferred subtitles',audioTracks:'Audio',subtitles:'Subtitles',off:'Off',defaultTrack:'Default',trackUnavailable:'The browser does not expose multiple audio tracks for this stream.',subtitleNone:'No subtitles',skipIntroButton:'Skip intro',nextEpisode:'Next episode',playingNext:'Playing next episode…',playManually:'Play Manually',chooseSource:'Choose a source',findingFirst:'Finding the first source…',noPlayableSource:'No playable source is available.',collectionSourceMissing:'The required add-on for this source is missing.',watchRegion:'Platform region',regionHelp:'Used for TMDB platform availability. Example: DO, US, ES.',nuvioFormat:'Nuvio collections format',communityNote:'The community collection uses AIO Metadata sources when available; MiFlix also resolves several common TMDB catalogs natively.',top10Note:'Native Top 10 lists are based on TMDB popularity, not official daily platform rankings.',audioBrowserNote:'The built-in player uses the MiFlix interface. With FFmpeg installed it can normalize audio/container formats; you can also choose MPV, VLC or Windows as an external player.',manualSource:'Manual source selection',loadingCollection:'Loading collection…',openCollection:'Open',noCollections:'No collections have been imported yet.',installCollectionHelp:'You can use Nuvio collection JSON directly.',year:'Year',back:'Back',nativePlayer:'Native player (MPV)',browserPlayer:'Browser player',playerEngine:'Playback engine',nativePlayerHelp:'On Windows MiFlix uses MPV for more reliable codecs, audio and subtitles. ExoPlayer will be used for Android/Android TV.',nativeHostMissing:'MPV is unavailable. MiFlix will use the browser player.',nativeOpening:'Opening native player…',nativeControls:'MPV: A cycles audio · S cycles subtitles · V toggles subtitles',manifestDetected:'Manifest detected',manifestCollectionAdded:'The add-on was installed and its catalogs were added to Collections.',carouselPrev:'Previous',carouselNext:'Next',deleteCollection:'Delete collection',deleteCollectionConfirm:'Remove this collection from MiFlix?',collectionDeleted:'Collection removed',kaptainCollection:'Import Kaptain/Nuvio',kaptainHelp:'Community collection with Nuvio-style cover art and focus GIFs.',episodes:'Episodes',episodeLoading:'Loading episodes…',noEpisodes:'No episodes were found for this season.',resume:'Resume',
     builtInPlayer:'MiFlix built-in player',externalPlayerMode:'External player',externalPlayerChoice:'External player',externalPlayerHelp:'You can open the stream in MPV, VLC or the Windows default player whenever you prefer.',builtInPlayerHelp:'Nuvio-style built-in player. When FFmpeg is available, MiFlix normalizes audio for better MKV/HEVC compatibility.',mpvPlayer:'MPV',vlcPlayer:'VLC',systemPlayer:'Windows default',mediaEngineReady:'Media engine ready',mediaEngineMissing:'FFmpeg is unavailable; the built-in player will use direct playback.',preparingPlayback:'Preparing playback…',switchingAudio:'Switching audio track…',noExtraAudio:'No additional audio tracks were detected.',playerBack:'Back',playerOptions:'Options',playerSpeed:'Speed',openExternal:'Open externally',playEpisodeNow:'Play episode',
     profiles:'Profiles',profile:'Profile',mainProfile:'Main',addProfile:'Add profile',switchProfile:'Switch profile',profileNameLabel:'Profile name',shareMainSetup:'Share main profile setup',shareMainSetupHelp:'Shares TMDB, add-ons, collections, appearance and playback settings. My List and watch history stay separate.',deleteProfile:'Delete profile',deleteProfileConfirm:'Delete this profile and its local history?',profileCreated:'Profile created',profileDeleted:'Profile deleted',watchParty:'Watch Party',partyIntro:'Create a session and keep content, play, pause and position synced until you leave.',createParty:'Create session',joinParty:'Join',joinCode:'Code or invite',partyCode:'Code',partyInvite:'Invite',copyInvite:'Copy invite',leaveParty:'Leave session',endParty:'End session',partyHost:'Host',partyGuest:'Guest',partyParticipants:'Participants',partyWaiting:'Waiting for content…',partyActive:'Session active',partyLan:'LAN / same network',partyRemote:'Remote relay',partyMode:'Mode',partyRelayUrl:'Remote relay URL',partyRelayHelp:'Optional. Without a relay, Watch Party works on the same local network. A ready-to-deploy Cloudflare Worker is included.',allowGuestControls:'Allow guest controls',partyJoined:'Joined Watch Party',partyCreated:'Watch Party created',partyLeft:'Left Watch Party',partyNoSource:'The content changed, but this profile could not find a playable source.',partySyncing:'Syncing with host…',partyNeedEngine:'MiFlix local service must be running for Watch Party.',partySameNetwork:'Share the QR or code. Without a relay configured, guests must be on the same network.',partyQr:'Invite QR',copyCode:'Copy code',builtInCompat:'Player compatibility',builtInCompatHelp:'MiFlix uses FFmpeg to deliver H.264 + AAC to the built-in player when the original stream is not browser-compatible.',playbackStarting:'Starting video…',clickToStart:'Click to start',    demoUsing:'Using local demo catalog',tmdbUsing:'Using TMDB catalog',tmdbCache:'TMDB cached',aboutData:'Data & credits'
@@ -257,6 +259,7 @@ let smartPlayTimer = null;
 let smartPlayLong = false;
 let tmdbCatalog = store.get('tmdbCatalog',[]);
 let tmdbAuth = store.get('tmdbAuth',{credential:''});
+if(!tmdbAuth.credential && PERSONAL_DEFAULTS.tmdbToken){tmdbAuth={credential:String(PERSONAL_DEFAULTS.tmdbToken)};store.set('tmdbAuth',tmdbAuth);}
 let tmdbLastSync = store.get('tmdbLastSync',null);
 let remoteSearchResults = [];
 let currentView = 'home';
@@ -279,6 +282,9 @@ let partyLastSentAt = 0;
 let partyLastRevision = 0;
 let partyTargetState = null;
 let cloudConfig = rawStore.get('cloudConfig',{url:'',key:''});
+if(!cloudConfig.url && PERSONAL_DEFAULTS.supabaseUrl)cloudConfig.url=String(PERSONAL_DEFAULTS.supabaseUrl);
+if(!cloudConfig.key && PERSONAL_DEFAULTS.supabaseKey)cloudConfig.key=String(PERSONAL_DEFAULTS.supabaseKey);
+rawStore.set('cloudConfig',cloudConfig);
 let cloudSession = rawStore.get('cloudSession',null);
 let cloudLastSync = rawStore.get('cloudLastSync',null);
 let cloudSyncTimer = null;
@@ -340,7 +346,7 @@ function updateProfileChip(){const p=activeProfile();const n=$('#profileName'),a
 function persistProfiles(){rawStore.set('profiles',profiles);rawStore.set('activeProfile',activeProfileId);updateProfileChip();scheduleCloudSync(true);}
 function reloadProfileState(){
   settings={...DEFAULT_SETTINGS,...store.get('settings',{})};if(settings.playerEngine==='native'||settings.playerEngine==='browser')settings.playerEngine='builtin';if(!settings.externalPlayer)settings.externalPlayer='mpv';
-  favorites=new Set(store.get('favorites',[]));progress=store.get('progress',{});installedAddons=store.get('addons',[]);addonCatalog=store.get('addonCatalog',[]);collections=store.get('collections',[]);tmdbCatalog=store.get('tmdbCatalog',[]);tmdbAuth=store.get('tmdbAuth',{credential:''});tmdbLastSync=store.get('tmdbLastSync',null);
+  favorites=new Set(store.get('favorites',[]));progress=store.get('progress',{});installedAddons=store.get('addons',[]);addonCatalog=store.get('addonCatalog',[]);collections=store.get('collections',[]);tmdbCatalog=store.get('tmdbCatalog',[]);tmdbAuth=store.get('tmdbAuth',{credential:''});if(!tmdbAuth.credential&&PERSONAL_DEFAULTS.tmdbToken){tmdbAuth={credential:String(PERSONAL_DEFAULTS.tmdbToken)};store.set('tmdbAuth',tmdbAuth);}tmdbLastSync=store.get('tmdbLastSync',null);
   homeSections={};dynamicCatalog=[];remoteSearchResults=[];platformProviders=null;homeSectionsLoadedAt=0;mediaEngineStatus=null;applySettings();setView('home');if(tmdbAuth.credential)setTimeout(()=>loadHomeSections(),350);
 }
 function switchProfile(id){if(!profiles.some(p=>p.id===id)||id===activeProfileId)return;closePlayerModalSafe();activeProfileId=id;persistProfiles();reloadProfileState();toast(t('switchProfile'),activeProfile().name);}
@@ -635,6 +641,18 @@ async function installManifest(m,url){
   addonCatalog.push(...catalog.map(x=>normalizeMedia(x,m.id)).filter(Boolean));
   store.set('addons',installedAddons); store.set('addonCatalog',addonCatalog); toast(t('addonInstalled'),m.name); renderAddons();
 }
+async function ensurePersonalDefaultAddon(){
+  const raw=String(PERSONAL_DEFAULTS.torrentioManifest||'').trim();if(!raw)return false;
+  const url=normalizeAddonManifestUrl(raw);
+  if(installedAddons.some(a=>a.source===url||a.baseUrl===addonBaseFromManifest(url)))return true;
+  try{
+    const m=await fetchJsonTimeout(url,12000);
+    if(!m?.id||!m?.name||!isStremioManifest(m))return false;
+    const addon={id:m.id,name:m.name,name_es:m.name_es,version:m.version||'1.0.0',description:m.description||'',description_es:m.description_es,types:m.types||[],resources:m.resources||[],catalogs:m.catalogs||[],idPrefixes:m.idPrefixes||[],source:url,baseUrl:addonBaseFromManifest(url),protocol:'stremio'};
+    installedAddons.push(addon);store.set('addons',installedAddons);return true;
+  }catch{return false;}
+}
+
 function normalizeMedia(x,addonId){ if(!x||!x.id||!x.title||!['movie','series'].includes(x.type)) return null; return {rating:0,year:'—',duration:'',genre:'Add-on',description:'',streams:[],...x,_addonId:addonId}; }
 function removeAddon(id){
   const addon=installedAddons.find(a=>a.id===id); installedAddons=installedAddons.filter(a=>a.id!==id); addonCatalog=addonCatalog.filter(x=>x._addonId!==id);
@@ -740,6 +758,7 @@ function renderSettings(){
       <button class="btn ghost" id="resetSettings">${t('resetAppearance')}</button>
     </div><div class="settings-panel"><h3>${t('playerPlayback')}</h3><p>${t('autoplayFirstHelp')}</p>
       <div class="setting"><label>${t('playerEngine')}</label><select id="playerEngine"><option value="builtin" ${settings.playerEngine==='builtin'?'selected':''}>${t('builtInPlayer')}</option><option value="external" ${settings.playerEngine==='external'?'selected':''}>${t('externalPlayerMode')}</option></select><small>${t('builtInPlayerHelp')}</small></div>
+      ${IS_ANDROID_TV?`<div class="setting tv-compat-setting"><label><span>${t('tvCompatibility')}</span><input id="tvCompatibilityMode" type="checkbox" ${settings.tvCompatibilityMode!==false?'checked':''}></label><small>${t('tvCompatibilityHelp')}</small></div>`:''}
       <div class="setting"><label>${t('externalPlayerChoice')}</label><select id="externalPlayer"><option value="mpv" ${settings.externalPlayer==='mpv'?'selected':''}>${t('mpvPlayer')}</option><option value="vlc" ${settings.externalPlayer==='vlc'?'selected':''}>${t('vlcPlayer')}</option><option value="system" ${settings.externalPlayer==='system'?'selected':''}>${t('systemPlayer')}</option></select><small>${t('externalPlayerHelp')}</small></div>
       <div class="setting"><label><span>${t('autoplayFirst')}</span><input id="autoplayFirst" type="checkbox" ${settings.autoplayFirst?'checked':''}></label></div>
       <div class="setting"><label><span>${t('autoplayNext')}</span><input id="autoplayNext" type="checkbox" ${settings.autoplayNext?'checked':''}></label><small>${t('autoplayNextHelp')}</small></div>
@@ -775,6 +794,7 @@ function bindSettings(){
   $('#ratings').onchange=e=>{settings.showRatings=e.target.checked;saveSettings(false);};
   $('#desc').onchange=e=>{settings.showDescription=e.target.checked;saveSettings(false);};
   $('#playerEngine').onchange=e=>{settings.playerEngine=e.target.value;saveSettings(false);};
+  const tvCompat=$('#tvCompatibilityMode');if(tvCompat)tvCompat.onchange=e=>{settings.tvCompatibilityMode=e.target.checked;saveSettings(false);};
   $('#externalPlayer').onchange=e=>{settings.externalPlayer=e.target.value;saveSettings(false);};
   $('#autoplayFirst').onchange=e=>{settings.autoplayFirst=e.target.checked;saveSettings(false);};
   $('#autoplayNext').onchange=e=>{settings.autoplayNext=e.target.checked;saveSettings(false);};
@@ -986,13 +1006,31 @@ async function selectSeason(item,season){
 function selectEpisode(item,season,episode){
   item._selectedSeason=Number(season)||1;item._selectedEpisode=Number(episode)||1;item.streams=[];item._streamQueried=false;item._streamError='';renderDetail(item);
 }
+function androidTvStreamScore(stream,index=0){
+  if(!stream?.playable||!stream.url)return -1e9;
+  if(!IS_ANDROID_TV||settings.tvCompatibilityMode===false)return 100000-index;
+  const text=[stream.name,stream.title,stream.quality,stream.behaviorHints?.filename].filter(Boolean).join(' ').toLowerCase();
+  let score=1000-index;
+  if(/1080p/.test(text))score+=280;else if(/720p/.test(text))score+=210;else if(/2160p|4k/.test(text))score+=80;
+  if(/\b(h264|x264|avc)\b/.test(text))score+=350;
+  if(/dolby\s*vision|\bdv\b/.test(text))score-=900;
+  if(/\bav1\b/.test(text))score-=700;
+  if(/hevc|h\.?265|x265/.test(text))score-=420;
+  if(/hdr10\+|hdr10|\bhdr\b/.test(text))score-=100;
+  if(/web[- .]?dl|webrip|bluray/.test(text))score+=40;
+  return score;
+}
+function bestPlayableStreamIndex(item){
+  let best=-1,bestScore=-1e12;(item.streams||[]).forEach((st,i)=>{const score=androidTvStreamScore(st,i);if(score>bestScore){bestScore=score;best=i;}});return best;
+}
+
 async function playEpisode(item,season,episode){
   item._selectedSeason=Number(season)||1;
   item._selectedEpisode=Number(episode)||1;
   item.streams=[];item._streamQueried=false;item._streamError='';
   toast(t('findingFirst'),`${item.title} · S${item._selectedSeason}E${item._selectedEpisode}`);
   await resolveStremioStreams(item,item._selectedSeason,item._selectedEpisode);
-  const idx=(item.streams||[]).findIndex(s=>s.playable&&s.url);
+  const idx=bestPlayableStreamIndex(item);
   if(idx<0){toast(t('noPlayableSource'),`${item.title} · S${item._selectedSeason}E${item._selectedEpisode}`);return;}
   prefetchSubtitleMetadata(item,item.streams[idx],item._selectedSeason,item._selectedEpisode);
   openPlayer(item.id,idx,{season:item._selectedSeason,episode:item._selectedEpisode});
@@ -1070,7 +1108,7 @@ async function smartPlay(id,manual=false){
   toast(t('findingFirst'),item.title);
   const season=Number($('#sourceSeason')?.value||item._selectedSeason||1), episode=Number($('#sourceEpisode')?.value||item._selectedEpisode||1);
   if(!item.streams?.some(s=>s.playable)) await resolveStremioStreams(item,season,episode);
-  const idx=(item.streams||[]).findIndex(s=>s.playable&&s.url);
+  const idx=bestPlayableStreamIndex(item);
   if(idx<0)return toast(t('noPlayableSource'),item.title);
   prefetchSubtitleMetadata(item,item.streams[idx],season,episode);
   openPlayer(item.id,idx,{season,episode});
@@ -1490,6 +1528,38 @@ document.addEventListener('pointerout',e=>{const f=e.target.closest('.collection
 document.addEventListener('focusin',e=>{const f=e.target.closest('.collection-folder');if(f)startFolderFocus(f);});
 document.addEventListener('focusout',e=>{const f=e.target.closest('.collection-folder');if(!f)return;setTimeout(()=>{if(!f.contains(document.activeElement)&&!f.matches(':hover'))stopFolderFocus(f);},0);});
 
+function tvFocusableElements(){
+  const selector='button:not([disabled]),[tabindex]:not([tabindex="-1"]),input:not([disabled]),select:not([disabled]),a[href]';
+  return [...document.querySelectorAll(selector)].filter(el=>{
+    const r=el.getBoundingClientRect(),cs=getComputedStyle(el);return r.width>1&&r.height>1&&cs.visibility!=='hidden'&&cs.display!=='none'&&!el.closest('[hidden]');
+  });
+}
+function tvMoveFocus(direction){
+  const current=document.activeElement;const nodes=tvFocusableElements();if(!nodes.length)return false;
+  if(!current||current===document.body||!nodes.includes(current)){nodes[0].focus();nodes[0].scrollIntoView({block:'center',inline:'nearest'});return true;}
+  const a=current.getBoundingClientRect(),ax=a.left+a.width/2,ay=a.top+a.height/2;let best=null,bestScore=Infinity;
+  for(const el of nodes){if(el===current)continue;const b=el.getBoundingClientRect(),bx=b.left+b.width/2,by=b.top+b.height/2,dx=bx-ax,dy=by-ay;
+    if(direction==='down'&&dy<=8)continue;if(direction==='up'&&dy>=-8)continue;if(direction==='right'&&dx<=8)continue;if(direction==='left'&&dx>=-8)continue;
+    const primary=(direction==='down'||direction==='up')?Math.abs(dy):Math.abs(dx),cross=(direction==='down'||direction==='up')?Math.abs(dx):Math.abs(dy);const score=primary+cross*2.2;
+    if(score<bestScore){bestScore=score;best=el;}
+  }
+  if(!best)return false;best.focus({preventScroll:true});best.scrollIntoView({behavior:settings.motion?'smooth':'auto',block:'center',inline:'nearest'});return true;
+}
+function handleTvNavigationKey(e){
+  if(!IS_ANDROID_TV||e.defaultPrevented)return;
+  const active=document.activeElement,key=e.key;
+  if(!['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(key))return;
+  const range=active?.matches?.('input[type="range"]');
+  const typing=active?.matches?.('input[type="text"],input[type="email"],input[type="password"],input[type="search"],textarea');
+  const rail=active?.closest?.('.media-rail,.ranked-row,.card-row,.category-row,.platform-row,.collection-folder-row,.year-row,.episode-row');
+  if(range&&(key==='ArrowLeft'||key==='ArrowRight'))return;
+  if(typing&&(key==='ArrowLeft'||key==='ArrowRight'))return;
+  if(rail&&(key==='ArrowLeft'||key==='ArrowRight'))return;
+  if(tvMoveFocus(key.replace('Arrow','').toLowerCase())){e.preventDefault();e.stopImmediatePropagation();}
+}
+if(IS_ANDROID_TV){document.body.classList.add('tv-mode');document.addEventListener('keydown',handleTvNavigationKey,true);}
+window.handleMiFlixTvBack=()=>{if($('#modalRoot').innerHTML){if(activePlayerContext?.nativeAndroid)return true;if($('#videoPlayer'))closePlayerModal();else{$('#modalRoot').innerHTML='';restoreAmbient();}return true;}if(backAction){goBack();return true;}setView('home');return true;};
+
 document.addEventListener('keydown',e=>{
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();searchInput.focus();searchInput.select();}
   if(e.key==='Escape'&&$('#modalRoot').innerHTML){if($('#videoPlayer'))closePlayerModal();else{$('#modalRoot').innerHTML='';restoreAmbient();}}else if(e.key==='Escape'&&backAction){goBack();}
@@ -1525,7 +1595,7 @@ function bindCloudSettings(){const url=$('#cloudUrl'),key=$('#cloudKey');const s
 function onNativeState(raw){let st=raw;try{if(typeof raw==='string')st=JSON.parse(raw);}catch{return;}if(!st)return;nativePlaybackState={position:Number(st.position||0),duration:Number(st.duration||0),playing:!!st.playing};const ctx=activePlayerContext;if(!ctx?.nativeAndroid)return;const key=playerProgressKey(ctx.item,ctx.season,ctx.episode),showKey=ctx.item.id;if(st.event==='closed'){activePlayerContext=null;return;}if(st.event==='error'){toast('MiFlix Player',st.message||t('playerMayFail'));return;}if(nativePlaybackState.duration>0){const row={percent:+Math.min(100,(nativePlaybackState.position/nativePlaybackState.duration)*100).toFixed(1),position:nativePlaybackState.position,duration:nativePlaybackState.duration,updatedAt:Date.now(),season:ctx.season,episode:ctx.episode};progress[key]=row;progress[showKey]=row;if(Math.floor(nativePlaybackState.position)%5===0)saveProgress();}partySendPlaybackState(st.event||'tick',st.event&&st.event!=='tick');if(st.event==='ended'){progress[key]={percent:100,updatedAt:Date.now(),season:ctx.season,episode:ctx.episode};progress[showKey]=progress[key];saveProgress();if(ctx.item.type==='series'&&settings.autoplayNext&&(!partySession||partySession.role==='host'))playNextEpisode(ctx.item,ctx.stream,ctx.season,ctx.episode);}}
 window.onMiFlixNativePlayerState=onNativeState;
 
-applySettings();setView('home');probeNativePlayer();updateProfileChip();if(partySession)startPartyPolling();
+applySettings();setView('home');probeNativePlayer();updateProfileChip();ensurePersonalDefaultAddon().then(ok=>{if(ok&&currentView==='addons')renderAddons();}).catch(()=>{});if(partySession)startPartyPolling();
 // Refresh stale TMDB data quietly (12h) when credentials already exist.
 if(tmdbAuth.credential && (!tmdbLastSync || Date.now()-tmdbLastSync>12*60*60*1000)) setTimeout(()=>refreshTmdbCatalog(false),500);
 if(tmdbAuth.credential) setTimeout(()=>loadHomeSections(),900);
