@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0b0b0f" />
+  <title>MiFlix V1.9.4</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="ambientBackdrop" class="ambient-backdrop" aria-hidden="true"></div>
+  <div id="app" class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand" tabindex="0" data-view="home">
+        <div class="brand-mark">M</div>
+        <div class="brand-text">MiFlix</div>
+        <span class="version-pill">V1.9.4</span>
+      </div>
+
+      <nav class="nav" aria-label="Main">
+        <button class="nav-item active" data-view="home"><span>⌂</span><b id="navHome">Inicio</b></button>
+        <button class="nav-item" data-view="movies"><span>▣</span><b id="navMovies">Películas</b></button>
+        <button class="nav-item" data-view="series"><span>▤</span><b id="navSeries">Series</b></button>
+        <button class="nav-item" data-view="library"><span>♡</span><b id="navLibrary">Mi lista</b></button>
+        <button class="nav-item" data-view="collections"><span>▦</span><b id="navCollections">Colecciones</b></button>
+        <button class="nav-item" data-view="addons"><span>⧉</span><b id="navAddons">Add-ons</b></button>
+        <button class="nav-item" data-view="party"><span>◎</span><b id="navParty">Watch Party</b></button>
+      </nav>
+
+      <div class="sidebar-bottom">
+        <button class="nav-item" data-view="settings"><span>⚙</span><b id="navSettings">Configuración</b></button>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <div class="topbar-left"><button class="back-btn" id="backButton" hidden aria-label="Back">‹</button><div class="topbar-title">
+          <div id="pageEyebrow" class="eyebrow">TU MEDIA CENTER PERSONAL</div>
+          <h1 id="pageTitle">Inicio</h1>
+        </div></div>
+        <div class="top-actions">
+          <label class="search-box" id="searchBox">
+            <span>⌕</span>
+            <input id="searchInput" type="search" placeholder="Buscar películas, series…" autocomplete="off" />
+            <kbd>Ctrl K</kbd>
+          </label>
+          <button class="lang-toggle" id="languageToggle" title="ES / EN" aria-label="Change language"><span class="active">ES</span><i></i><span>EN</span></button>
+          <button class="profile-chip" id="profileButton" title="Profile"><span class="profile-avatar" id="profileAvatar">P</span><b id="profileName">Principal</b><span>⌄</span></button>
+          <button class="icon-btn" id="quickSettings" title="Settings">⚙</button>
+        </div>
+      </header>
+
+      <div id="view" class="view"></div>
+    </main>
+  </div>
+
+  <div id="modalRoot"></div>
+  <div id="toastRoot" class="toast-root"></div>
+
+  <script src="qrcode-local.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

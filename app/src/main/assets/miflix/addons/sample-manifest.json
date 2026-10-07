@@ -1,0 +1,31 @@
+{
+  "id": "demo.open.movies.file",
+  "name": "Open Movies Demo (JSON)",
+  "version": "1.3.0",
+  "description": "Example MiFlix manifest with direct public demo streams.",
+  "description_es": "Manifest de ejemplo de MiFlix con streams directos públicos de demostración.",
+  "types": ["catalog", "meta", "stream"],
+  "catalog": [
+    {
+      "id": "addon:file:big-buck-bunny",
+      "type": "movie",
+      "title": "Big Buck Bunny (JSON Demo)",
+      "year": 2008,
+      "rating": 8.0,
+      "duration": "9m 56s",
+      "genre": "Open movie",
+      "genre_es": "Película abierta",
+      "description": "Example item loaded from a MiFlix JSON add-on manifest.",
+      "description_es": "Contenido cargado desde un manifest JSON de add-on de MiFlix.",
+      "backdrop": "assets/backdrops/nebula.jpg",
+      "trailer": "assets/trailers/nebula.mp4",
+      "streams": [
+        {
+          "name": "1080p · Google sample",
+          "quality": "1080p",
+          "url": "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
+        }
+      ]
+    }
+  ]
+}
