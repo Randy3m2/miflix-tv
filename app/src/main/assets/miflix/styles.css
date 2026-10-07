@@ -526,7 +526,9 @@ body.tv-mode .tmdb-actions{gap:10px;flex-wrap:wrap}
 body.tv-mode .btn,body.tv-mode .nav-item,body.tv-mode .theme-pill,body.tv-mode select,body.tv-mode input,body.tv-mode .media-card,body.tv-mode .episode-card,body.tv-mode .platform-tile,body.tv-mode .collection-folder{outline:none}
 body.tv-mode :focus-visible{box-shadow:0 0 0 4px rgba(var(--accent-rgb),.85),0 0 0 8px rgba(0,0,0,.72)!important;border-color:rgba(255,255,255,.85)!important;transform:scale(1.025);z-index:30}
 body.tv-mode .media-card:focus-visible,body.tv-mode .episode-card:focus-visible,body.tv-mode .platform-tile:focus-visible,body.tv-mode .collection-folder:focus-visible{transform:scale(1.045);box-shadow:0 20px 44px rgba(0,0,0,.55),0 0 0 4px rgba(var(--accent-rgb),.9)!important}
-body.tv-mode .sidebar:focus-within{width:var(--sidebar-expanded)}
+body.tv-mode .sidebar:focus-within{width:var(--sidebar-width)}
+body.tv-mode.tv-nav-open .sidebar{width:var(--sidebar-expanded)}
+body.tv-mode.tv-nav-open .sidebar .brand-text,body.tv-mode.tv-nav-open .sidebar .version-pill,body.tv-mode.tv-nav-open .sidebar .nav-item b{opacity:1;transform:none}
 body.tv-mode .nav-item{min-height:52px}
 body.tv-mode .rail-nav{opacity:.82}
 body.tv-mode .favorite-badge{opacity:.95}
@@ -583,3 +585,21 @@ body.tv-fast .rail-nav{display:none!important}
 body.tv-fast .platform-focus:not([src]){display:none}
 body.tv-fast .platform-fallback{font-size:27px;font-weight:850;letter-spacing:-.8px;color:#f4f4f6}
 body.tv-fast .poster-title{font-size:16px}
+
+
+/* ===== MiFlix TV V1.9.7: controlled D-pad zones + lighter rails ===== */
+body.tv-mode .search-box{pointer-events:none;opacity:.88}
+body.tv-mode .search-box:focus-within{pointer-events:auto;opacity:1}
+body.tv-mode .tv-search-nav{display:flex}
+body.tv-mode #view{opacity:1;transition:opacity .085s linear;contain:layout style}
+body.tv-mode #view.tv-view-swap{opacity:.42}
+body.tv-fast .section{content-visibility:auto;contain-intrinsic-size:420px;contain:layout style paint}
+body.tv-fast .media-rail,body.tv-fast .category-row,body.tv-fast .platform-row,body.tv-fast .episode-row,body.tv-fast .collection-folder-row{scroll-behavior:auto!important;overscroll-behavior-x:contain;will-change:scroll-position}
+body.tv-fast .media-card,body.tv-fast .episode-card,body.tv-fast .platform-tile,body.tv-fast .collection-folder{contain:layout paint style}
+body.tv-fast .media-card img,body.tv-fast .episode-card img,body.tv-fast .platform-tile img{backface-visibility:hidden;transform:translateZ(0)}
+body.tv-fast .sidebar{transition:width .11s linear!important}
+body.tv-fast .brand-text,body.tv-fast .version-pill,body.tv-fast .nav-item b{transition-duration:.08s!important}
+body.tv-fast .search-box{transition:none!important}
+body.tv-fast .topbar{box-shadow:none!important}
+body.tv-fast .ambient-backdrop{filter:none!important;opacity:.38!important}
+body.tv-fast .modal{contain:layout paint style}

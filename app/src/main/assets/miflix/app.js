@@ -261,8 +261,11 @@ let activePlayerContext = null;
 let smartPlayTimer = null;
 let smartPlayLong = false;
 let tmdbCatalog = store.get('tmdbCatalog',[]);
+let cloudPrivateSetup = rawStore.get('cloudPrivateSetup',{});
+function effectiveTmdbToken(){return String(cloudPrivateSetup?.tmdbToken||PERSONAL_DEFAULTS.tmdbToken||'').trim();}
+function effectiveTorrentioManifest(){return String(cloudPrivateSetup?.torrentioManifest||PERSONAL_DEFAULTS.torrentioManifest||'').trim();}
 let tmdbAuth = store.get('tmdbAuth',{credential:''});
-if(!tmdbAuth.credential && PERSONAL_DEFAULTS.tmdbToken){tmdbAuth={credential:String(PERSONAL_DEFAULTS.tmdbToken)};store.set('tmdbAuth',tmdbAuth);}
+if(!tmdbAuth.credential && effectiveTmdbToken()){tmdbAuth={credential:effectiveTmdbToken()};store.set('tmdbAuth',tmdbAuth);}
 let tmdbLastSync = store.get('tmdbLastSync',null);
 let remoteSearchResults = [];
 let currentView = 'home';
@@ -329,8 +332,9 @@ function applySettings(){
   applyStaticTranslations();
 }
 function applyStaticTranslations(){
-  const labels={navHome:'home',navMovies:'movies',navSeries:'series',navLibrary:'library',navCollections:'collections',navAddons:'addons',navParty:'party',navSettings:'settings'};
+  const labels={navHome:'home',navSearch:'searchFor',navMovies:'movies',navSeries:'series',navLibrary:'library',navCollections:'collections',navAddons:'addons',navParty:'party',navSettings:'settings'};
   Object.entries(labels).forEach(([id,key])=>{const el=$(`#${id}`);if(el)el.textContent=t(key);});
+  const navSearch=$('#navSearch');if(navSearch)navSearch.textContent=settings.language==='es'?'Buscar':'Search';
   if(searchInput) searchInput.placeholder=t('searchPlaceholder');
   const toggle=$('#languageToggle');
   if(toggle) toggle.innerHTML=`<span class="${settings.language==='es'?'active':''}">ES</span><i></i><span class="${settings.language==='en'?'active':''}">EN</span>`;
@@ -376,7 +380,7 @@ function tmdbSizedUrl(src,size){
 }
 function cardImageUrl(item){
   let src=item?.cardImage||item?.backdrop||item?.poster||'';
-  if(item?.provider==='tmdb')src=tmdbSizedUrl(src,IS_ANDROID_TV?'w342':'w500');
+  if(item?.provider==='tmdb')src=tmdbSizedUrl(src,IS_ANDROID_TV?'w300':'w500');
   return src;
 }
 function imageMarkup(item, cls='media-image'){
@@ -384,7 +388,7 @@ function imageMarkup(item, cls='media-image'){
   let src=large?(item.backdrop||item.poster||''):cardImageUrl(item);
   if(IS_ANDROID_TV&&item?.provider==='tmdb'&&large)src=tmdbSizedUrl(src,'w780');
   let fallback=item.poster&&item.poster!==src?item.poster:'';
-  if(IS_ANDROID_TV&&item?.provider==='tmdb'&&fallback)fallback=tmdbSizedUrl(fallback,large?'w500':'w342');
+  if(IS_ANDROID_TV&&item?.provider==='tmdb'&&fallback)fallback=tmdbSizedUrl(fallback,large?'w500':'w300');
   if(!src)return '';
   const fallbackAttr=fallback?` data-fallback="${esc(fallback)}"`:'';
   const priority=large?' loading="eager" fetchpriority="high"':(IS_ANDROID_TV?' loading="lazy" fetchpriority="low"':' loading="eager" fetchpriority="auto"');
@@ -477,7 +481,7 @@ function renderHome(){
   ].map(x=>platformTile(...x)).join(''),'platform-row')}</section>`;
   const yearNow=new Date().getFullYear();
   const years=`<section class="section compact-section"><div class="section-head"><div><h3>${t('moviesByYear')}</h3></div></div>${railShell([yearNow,yearNow-1,yearNow-2,yearNow-3,yearNow-4,yearNow-5].map(y=>`<button class="year-tile" data-year="${y}"><b>${y}</b><small>${t('movies')}</small></button>`).join(''),'year-row')}</section>`;
-  const rowLimit=IS_ANDROID_TV?8:12;
+  const rowLimit=IS_ANDROID_TV?7:12;
   const collectionRows=collections.length?(IS_ANDROID_TV?collections.slice(0,2):collections).map(c=>collectionBlock(c,false)).join(''):'';
   const trending=(homeSections.trending?.length?homeSections.trending:fallbackPopular).slice(0,rowLimit);
   const popularMovies=(homeSections.popularMovies||catalog.filter(x=>x.type==='movie')).slice(0,rowLimit);
@@ -510,9 +514,9 @@ async function loadHomeSections(){
         tmdbFetch('/trending/all/week',{}),tmdbFetch('/movie/popular',{page:1}),tmdbFetch('/tv/popular',{page:1})
       ]);
       homeSections={
-        trending:(trending.results||[]).map(mapTmdb).filter(Boolean).slice(0,8),
-        popularMovies:(pm.results||[]).map(x=>mapTmdb(x,'movie')).filter(Boolean).slice(0,8),
-        popularSeries:(ps.results||[]).map(x=>mapTmdb(x,'tv')).filter(Boolean).slice(0,8)
+        trending:(trending.results||[]).map(mapTmdb).filter(Boolean).slice(0,7),
+        popularMovies:(pm.results||[]).map(x=>mapTmdb(x,'movie')).filter(Boolean).slice(0,7),
+        popularSeries:(ps.results||[]).map(x=>mapTmdb(x,'tv')).filter(Boolean).slice(0,7)
       };
     }else{
       const y=new Date().getFullYear();
@@ -667,7 +671,7 @@ async function installManifest(m,url){
   store.set('addons',installedAddons); store.set('addonCatalog',addonCatalog); toast(t('addonInstalled'),m.name); renderAddons();
 }
 async function ensurePersonalDefaultAddon(){
-  const raw=String(PERSONAL_DEFAULTS.torrentioManifest||'').trim();if(!raw)return false;
+  const raw=effectiveTorrentioManifest();if(!raw)return false;
   const url=normalizeAddonManifestUrl(raw);
   if(installedAddons.some(a=>a.source===url||a.baseUrl===addonBaseFromManifest(url)))return true;
   try{
@@ -1499,7 +1503,7 @@ async function playTmdbCardTrailer(card,item){
 }
 function startCardInteraction(card){
   if(!card||activePreviewCard===card)return;if(activePreviewCard)endCardInteraction(activePreviewCard,false);activePreviewCard=card;card.classList.add('is-active');const item=itemById(card.dataset.mediaId);clearTimeout(ambientTimer);
-  if(item){if(IS_ANDROID_TV)ambientTimer=setTimeout(()=>{if(activePreviewCard===card)setAmbient(item,false);},260);else setAmbient(item,true);}clearTimeout(previewTimer);
+  if(item){if(IS_ANDROID_TV)ambientTimer=setTimeout(()=>{if(activePreviewCard===card)setAmbient(item,false);},650);else setAmbient(item,true);}clearTimeout(previewTimer);
   if(!IS_ANDROID_TV&&settings.autoPreviews&&(item?.trailer||item?.provider==='tmdb')) previewTimer=setTimeout(()=>{if(activePreviewCard!==card)return;if(item.provider==='tmdb'){playTmdbCardTrailer(card,item);return;}const video=card.querySelector('.card-trailer');if(!video)return;if(!video.src)video.src=video.dataset.trailer;video.currentTime=0;video.classList.add('playing');const p=video.play();if(p?.catch)p.catch(()=>video.classList.remove('playing'));card.classList.add('preview-playing');},Math.max(1000,(settings.previewDelay||11)*1000));
 }
 function endCardInteraction(card,restore=true){
@@ -1512,14 +1516,15 @@ function viewLabels(name){
   const map={home:[t('home'),t('personalCenter')],movies:[t('movies'),t('catalog')],series:[t('series'),t('catalog')],library:[t('library'),t('localLibrary')],collections:[t('collections'),t('catalog')],addons:[t('addons'),t('modular')],party:[t('watchParty'),'SYNC'],settings:[t('settings'),t('personalization')]};return map[name]||['MiFlix',''];
 }
 function setView(name){
-  stopAllPreviews();clearBack();currentView=name;searchTerm='';remoteSearchResults=[];searchInput.value='';$$('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.view===name));const labels=viewLabels(name);pageTitle.textContent=labels[0];pageEyebrow.textContent=labels[1];
-  if(name==='home')renderHome();if(name==='movies')renderCatalog('movie');if(name==='series')renderCatalog('series');if(name==='library')renderLibrary();if(name==='collections')renderCollections();if(name==='addons')renderAddons();if(name==='party')renderParty();if(name==='settings')renderSettings();window.scrollTo({top:0,behavior:settings.motion?'smooth':'auto'});
+  stopAllPreviews();clearBack();currentView=name;searchTerm='';remoteSearchResults=[];searchInput.value='';if(IS_ANDROID_TV)view.classList.add('tv-view-swap');$$('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.view===name));const labels=viewLabels(name);pageTitle.textContent=labels[0];pageEyebrow.textContent=labels[1];
+  if(name==='home')renderHome();if(name==='movies')renderCatalog('movie');if(name==='series')renderCatalog('series');if(name==='library')renderLibrary();if(name==='collections')renderCollections();if(name==='addons')renderAddons();if(name==='party')renderParty();if(name==='settings')renderSettings();window.scrollTo({top:0,behavior:'auto'});if(IS_ANDROID_TV)requestAnimationFrame(()=>requestAnimationFrame(()=>view.classList.remove('tv-view-swap')));
 }
 function renderCurrent(){stopAllPreviews();applyStaticTranslations();if(searchTerm){pageTitle.textContent=settings.language==='es'?'Buscar':'Search';pageEyebrow.textContent=t('results');renderSearch(false);return;}setView(currentView);}
 
 // Dynamic actions.
 document.addEventListener('click',e=>{
   const rail=e.target.closest('[data-rail-scroll]');if(rail){const el=document.getElementById(rail.dataset.railScroll);if(el)el.scrollBy({left:(+rail.dataset.dir||1)*Math.max(320,el.clientWidth*.82),behavior:settings.motion?'smooth':'auto'});return;}
+  const searchNav=e.target.closest('[data-tv-search]');if(searchNav){e.preventDefault();document.body.classList.remove('tv-nav-open');searchInput.tabIndex=0;searchInput.focus({preventScroll:true});searchInput.select?.();return;}
   const nav=e.target.closest('[data-view]');if(nav){setView(nav.dataset.view);return;}
   if(e.target.classList?.contains('modal-backdrop')){if($('#videoPlayer'))closePlayerModal();else{$('#modalRoot').innerHTML='';restoreAmbient();}return;}
   const close=e.target.closest('[data-close-modal]');if(close){if($('#videoPlayer'))closePlayerModal();else{$('#modalRoot').innerHTML='';restoreAmbient();}return;}
@@ -1555,71 +1560,79 @@ document.addEventListener('pointerover',e=>{const f=e.target.closest('.collectio
 document.addEventListener('pointerout',e=>{const f=e.target.closest('.collection-folder');if(!f)return;if(e.relatedTarget&&f.contains(e.relatedTarget))return;if(f.contains(document.activeElement))return;stopFolderFocus(f);});
 document.addEventListener('focusin',e=>{const f=e.target.closest('.collection-folder');if(f)startFolderFocus(f);});
 document.addEventListener('focusout',e=>{const f=e.target.closest('.collection-folder');if(!f)return;setTimeout(()=>{if(!f.contains(document.activeElement)&&!f.matches(':hover'))stopFolderFocus(f);},0);});
-function startPlatformFocus(tile){const img=tile?.querySelector?.('.platform-focus[data-focus-src]');if(img&&!img.getAttribute('src'))img.setAttribute('src',img.dataset.focusSrc||'');}
+const platformFocusTimers=new WeakMap();
+function startPlatformFocus(tile){
+  if(!tile)return;const img=tile.querySelector?.('.platform-focus[data-focus-src]');if(!img)return;
+  const oldTimer=platformFocusTimers.get(tile);if(oldTimer)clearTimeout(oldTimer);
+  if(!IS_ANDROID_TV){if(!img.getAttribute('src'))img.setAttribute('src',img.dataset.focusSrc||'');return;}
+  const timer=setTimeout(()=>{if(tile.contains(document.activeElement)&&!img.getAttribute('src'))img.setAttribute('src',img.dataset.focusSrc||'');},650);
+  platformFocusTimers.set(tile,timer);
+}
+function stopPlatformFocus(tile){const timer=platformFocusTimers.get(tile);if(timer)clearTimeout(timer);platformFocusTimers.delete(tile);} 
 document.addEventListener('focusin',e=>{const p=e.target.closest('.platform-tile');if(p)startPlatformFocus(p);});
+document.addEventListener('focusout',e=>{const p=e.target.closest('.platform-tile');if(p)setTimeout(()=>{if(!p.contains(document.activeElement))stopPlatformFocus(p);},0);});
 document.addEventListener('pointerover',e=>{const p=e.target.closest('.platform-tile');if(p)startPlatformFocus(p);});
 
 let modalFocusBefore=null,modalOpenState=false;
 function activeTvModal(){return $('#modalRoot .modal-backdrop .modal');}
+function visibleFocusable(scope,selector='button:not([disabled]),[tabindex]:not([tabindex="-1"]),input:not([disabled]),select:not([disabled]),a[href]'){
+  return [...scope.querySelectorAll(selector)].filter(el=>{const r=el.getBoundingClientRect(),cs=getComputedStyle(el);return r.width>2&&r.height>2&&cs.visibility!=='hidden'&&cs.display!=='none'&&!el.closest('[hidden]');});
+}
 function tvScrollFocusedIntoView(el){
-  const modal=el?.closest?.('.modal');
-  if(modal){
-    const mr=modal.getBoundingClientRect(),er=el.getBoundingClientRect(),pad=70;
-    if(er.top<mr.top+pad)modal.scrollBy({top:er.top-(mr.top+pad),behavior:'auto'});
-    else if(er.bottom>mr.bottom-pad)modal.scrollBy({top:er.bottom-(mr.bottom-pad),behavior:'auto'});
-    return;
-  }
-  el?.scrollIntoView?.({behavior:'auto',block:'center',inline:'nearest'});
+  if(!el)return;const modal=el.closest?.('.modal');const r=el.getBoundingClientRect();
+  if(modal){const mr=modal.getBoundingClientRect(),pad=64;if(r.top<mr.top+pad)modal.scrollBy({top:r.top-(mr.top+pad),behavior:'auto'});else if(r.bottom>mr.bottom-pad)modal.scrollBy({top:r.bottom-(mr.bottom-pad),behavior:'auto'});return;}
+  const top=92,bottom=window.innerHeight-54;if(r.top<top)window.scrollBy({top:r.top-top-20,behavior:'auto'});else if(r.bottom>bottom)window.scrollBy({top:r.bottom-bottom+28,behavior:'auto'});
 }
 function syncModalFocusState(){
   const modal=activeTvModal();
   if(modal){
     if(!modalOpenState){modalFocusBefore=document.activeElement;modalOpenState=true;}
-    document.body.classList.add('modal-open');
-    if(IS_ANDROID_TV&&!modal.contains(document.activeElement))requestAnimationFrame(()=>{
-      const target=modal.querySelector('[data-smart-play],.episode-card,button:not([disabled]),select:not([disabled]),input:not([disabled]),[tabindex]:not([tabindex="-1"])');
-      if(target){target.focus({preventScroll:true});tvScrollFocusedIntoView(target);}
-    });
+    document.body.classList.add('modal-open');document.body.classList.remove('tv-nav-open');
+    if(IS_ANDROID_TV&&!modal.contains(document.activeElement))requestAnimationFrame(()=>{const target=modal.querySelector('[data-smart-play],.episode-card,button:not([disabled]),select:not([disabled]),input:not([disabled]),[tabindex]:not([tabindex="-1"])');if(target){target.focus({preventScroll:true});tvScrollFocusedIntoView(target);}});
   }else if(modalOpenState){
     modalOpenState=false;document.body.classList.remove('modal-open');
-    if(IS_ANDROID_TV&&modalFocusBefore?.isConnected)requestAnimationFrame(()=>modalFocusBefore.focus?.({preventScroll:true}));
-    modalFocusBefore=null;
+    if(IS_ANDROID_TV&&modalFocusBefore?.isConnected)requestAnimationFrame(()=>modalFocusBefore.focus?.({preventScroll:true}));modalFocusBefore=null;
   }
 }
 const modalRootObserverTarget=$('#modalRoot');
 if(modalRootObserverTarget)new MutationObserver(syncModalFocusState).observe(modalRootObserverTarget,{childList:true,subtree:true});
 
-function tvFocusableElements(){
-  const selector='button:not([disabled]),[tabindex]:not([tabindex="-1"]),input:not([disabled]),select:not([disabled]),a[href]';
-  const modal=activeTvModal(),scope=modal||document;
-  return [...scope.querySelectorAll(selector)].filter(el=>{
-    const r=el.getBoundingClientRect(),cs=getComputedStyle(el);return r.width>1&&r.height>1&&cs.visibility!=='hidden'&&cs.display!=='none'&&!el.closest('[hidden]');
-  });
-}
-function tvMoveFocus(direction){
-  const current=document.activeElement;const nodes=tvFocusableElements();if(!nodes.length)return false;
-  if(!current||current===document.body||!nodes.includes(current)){const target=nodes.find(x=>x.matches('[data-smart-play]'))||nodes[0];target.focus({preventScroll:true});tvScrollFocusedIntoView(target);return true;}
-  const a=current.getBoundingClientRect(),ax=a.left+a.width/2,ay=a.top+a.height/2;let best=null,bestScore=Infinity;
+function tvMainFocusable(){return visibleFocusable(document.querySelector('.main-content'),'.view button:not([disabled]),.view [tabindex]:not([tabindex="-1"]),.view input:not([disabled]),.view select:not([disabled]),#backButton:not([hidden])');}
+function tvModalFocusable(){const m=activeTvModal();return m?visibleFocusable(m):[];}
+function nearestDirectional(current,nodes,direction){
+  if(!current||!nodes.length)return null;const a=current.getBoundingClientRect(),ax=a.left+a.width/2,ay=a.top+a.height/2;let best=null,bestScore=Infinity;
   for(const el of nodes){if(el===current)continue;const b=el.getBoundingClientRect(),bx=b.left+b.width/2,by=b.top+b.height/2,dx=bx-ax,dy=by-ay;
-    if(direction==='down'&&dy<=8)continue;if(direction==='up'&&dy>=-8)continue;if(direction==='right'&&dx<=8)continue;if(direction==='left'&&dx>=-8)continue;
-    const primary=(direction==='down'||direction==='up')?Math.abs(dy):Math.abs(dx),cross=(direction==='down'||direction==='up')?Math.abs(dx):Math.abs(dy);const score=primary+cross*1.65;
-    if(score<bestScore){bestScore=score;best=el;}
-  }
-  if(!best)return false;best.focus({preventScroll:true});tvScrollFocusedIntoView(best);return true;
+    if(direction==='left'&&dx>=-8)continue;if(direction==='right'&&dx<=8)continue;if(direction==='up'&&dy>=-8)continue;if(direction==='down'&&dy<=8)continue;
+    const primary=(direction==='left'||direction==='right')?Math.abs(dx):Math.abs(dy),cross=(direction==='left'||direction==='right')?Math.abs(dy):Math.abs(dx);
+    // Strongly prefer the same visual row/column and avoid huge diagonal jumps.
+    const score=primary+cross*2.6+(cross>220?500:0);if(score<bestScore){bestScore=score;best=el;}
+  }return best;
+}
+function focusEl(el){if(!el)return false;el.focus({preventScroll:true});tvScrollFocusedIntoView(el);return true;}
+function activeNavButton(){return document.querySelector(`.nav-item[data-view="${currentView}"]`)||document.querySelector('.nav-item[data-view="home"]');}
+function enterSidebar(){document.body.classList.add('tv-nav-open');return focusEl(activeNavButton());}
+function leaveSidebar(){document.body.classList.remove('tv-nav-open');const nodes=tvMainFocusable();return focusEl(nodes[0]);}
+function moveInsideRail(active,key){
+  const rail=active?.closest?.('.media-rail,.ranked-row,.card-row,.category-row,.platform-row,.collection-folder-row,.year-row,.episode-row');if(!rail)return false;
+  const nodes=[...rail.querySelectorAll('.media-card,.category-tile,.platform-tile,.collection-folder,.year-tile,.episode-card')].filter(x=>x.getBoundingClientRect().width>1);const i=nodes.indexOf(active);if(i<0)return false;
+  if(key==='ArrowLeft'){if(i===0)return enterSidebar();const n=nodes[i-1];focusEl(n);const left=n.offsetLeft-Math.max(22,(rail.clientWidth-n.offsetWidth)/2);rail.scrollTo({left:Math.max(0,left),behavior:'auto'});return true;}
+  if(key==='ArrowRight'){const n=nodes[Math.min(nodes.length-1,i+1)];if(n===active)return true;focusEl(n);const left=n.offsetLeft-Math.max(22,(rail.clientWidth-n.offsetWidth)/2);rail.scrollTo({left:Math.max(0,left),behavior:'auto'});return true;}
+  return false;
 }
 function handleTvNavigationKey(e){
-  if(!IS_ANDROID_TV||e.defaultPrevented)return;
-  const active=document.activeElement,key=e.key;
-  if(!['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(key))return;
-  const range=active?.matches?.('input[type="range"]');
-  const typing=active?.matches?.('input[type="text"],input[type="email"],input[type="password"],input[type="search"],textarea');
-  const rail=active?.closest?.('.media-rail,.ranked-row,.card-row,.category-row,.platform-row,.collection-folder-row,.year-row,.episode-row');
-  if(range&&(key==='ArrowLeft'||key==='ArrowRight'))return;
-  if(typing&&(key==='ArrowLeft'||key==='ArrowRight'))return;
-  if(rail&&(key==='ArrowLeft'||key==='ArrowRight'))return;
-  if(tvMoveFocus(key.replace('Arrow','').toLowerCase())){e.preventDefault();e.stopImmediatePropagation();}
+  if(!IS_ANDROID_TV||e.defaultPrevented)return;const key=e.key;if(!['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(key))return;const active=document.activeElement;
+  const modal=activeTvModal();if(modal){const range=active?.matches?.('input[type="range"]');const typing=active?.matches?.('input[type="text"],input[type="email"],input[type="password"],input[type="search"],textarea');if(range&&(key==='ArrowLeft'||key==='ArrowRight'))return;if(typing&&(key==='ArrowLeft'||key==='ArrowRight'))return;if(moveInsideRail(active,key)){e.preventDefault();e.stopImmediatePropagation();return;}const next=nearestDirectional(active,tvModalFocusable(),key.replace('Arrow','').toLowerCase());if(next){e.preventDefault();e.stopImmediatePropagation();focusEl(next);}return;}
+  const sidebar=active?.closest?.('.sidebar');if(sidebar){const navs=visibleFocusable(document.querySelector('.sidebar'),'.nav-item,.brand');const i=navs.indexOf(active);if(key==='ArrowUp'||key==='ArrowDown'){const d=key==='ArrowDown'?1:-1;const n=navs[Math.max(0,Math.min(navs.length-1,i+d))];e.preventDefault();e.stopImmediatePropagation();focusEl(n);return;}if(key==='ArrowRight'){e.preventDefault();e.stopImmediatePropagation();leaveSidebar();return;}if(key==='ArrowLeft'){e.preventDefault();e.stopImmediatePropagation();return;}}
+  const top=active?.closest?.('.topbar');if(top){if(active===searchInput&&(key==='ArrowLeft'||key==='ArrowRight'))return;if(key==='ArrowDown'){e.preventDefault();e.stopImmediatePropagation();const nodes=tvMainFocusable();focusEl(nodes[0]);return;}const nodes=visibleFocusable(top,'button:not([disabled]),input:not([disabled])');const next=nearestDirectional(active,nodes,key.replace('Arrow','').toLowerCase());if(next){e.preventDefault();e.stopImmediatePropagation();focusEl(next);}return;}
+  if(moveInsideRail(active,key)){e.preventDefault();e.stopImmediatePropagation();return;}
+  const range=active?.matches?.('input[type="range"]');const typing=active?.matches?.('input[type="text"],input[type="email"],input[type="password"],input[type="search"],textarea');if(range&&(key==='ArrowLeft'||key==='ArrowRight'))return;if(typing&&(key==='ArrowLeft'||key==='ArrowRight'))return;
+  if(key==='ArrowLeft'&&active?.closest?.('.view')){const r=active.getBoundingClientRect();if(r.left<260){e.preventDefault();e.stopImmediatePropagation();enterSidebar();return;}}
+  const next=nearestDirectional(active,tvMainFocusable(),key.replace('Arrow','').toLowerCase());if(next){e.preventDefault();e.stopImmediatePropagation();focusEl(next);}
 }
-if(IS_ANDROID_TV){document.body.classList.add('tv-mode','tv-fast');document.addEventListener('keydown',handleTvNavigationKey,true);}
+if(IS_ANDROID_TV){
+  document.body.classList.add('tv-mode','tv-fast');searchInput.tabIndex=-1;document.addEventListener('keydown',handleTvNavigationKey,true);
+  document.addEventListener('focusin',e=>{if(e.target.closest('.sidebar .nav-item,.sidebar .brand'))document.body.classList.add('tv-nav-open');else if(!e.target.closest('.sidebar'))document.body.classList.remove('tv-nav-open');});
+}
 window.handleMiFlixTvBack=()=>{if($('#modalRoot').innerHTML){if(activePlayerContext?.nativeAndroid)return true;if($('#videoPlayer'))closePlayerModal();else{$('#modalRoot').innerHTML='';restoreAmbient();}return true;}if(backAction){goBack();return true;}setView('home');return true;};
 
 document.addEventListener('keydown',e=>{
@@ -1627,7 +1640,7 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape'&&$('#modalRoot').innerHTML){if($('#videoPlayer'))closePlayerModal();else{$('#modalRoot').innerHTML='';restoreAmbient();}}else if(e.key==='Escape'&&backAction){goBack();}
   if((e.key==='Enter'||e.key===' ')&&document.activeElement?.matches('[data-smart-play]')){e.preventDefault();if(!e.repeat&&!document.activeElement.dataset.keypressActive){const b=document.activeElement;b.dataset.keypressActive='1';smartPlayLong=false;clearTimeout(smartPlayTimer);smartPlayTimer=setTimeout(()=>{smartPlayLong=true;toast(t('playManually'),t('chooseSource'));smartPlay(b.dataset.smartPlay,true);},1000);}return;}
   if((e.key==='Enter'||e.key===' ')&&document.activeElement?.matches('.media-card')){e.preventDefault();openDetail(document.activeElement.dataset.open);}
-  if(['ArrowLeft','ArrowRight'].includes(e.key)){const active=document.activeElement;const scope=active?.closest?.('.media-rail,.ranked-row,.card-row,.category-row,.platform-row,.collection-folder-row,.year-row,.episode-row');if(scope){const nodes=[...scope.querySelectorAll('.media-card,.category-tile,.platform-tile,.collection-folder,.year-tile,.episode-card')];const i=nodes.indexOf(active);if(i>=0){const next=e.key==='ArrowRight'?nodes[Math.min(nodes.length-1,i+1)]:nodes[Math.max(0,i-1)];if(next&&next!==active){e.preventDefault();next.focus({preventScroll:true});next.scrollIntoView({behavior:settings.motion?'smooth':'auto',block:'nearest',inline:'center'});}}}}
+  if(!IS_ANDROID_TV&&['ArrowLeft','ArrowRight'].includes(e.key)){const active=document.activeElement;const scope=active?.closest?.('.media-rail,.ranked-row,.card-row,.category-row,.platform-row,.collection-folder-row,.year-row,.episode-row');if(scope){const nodes=[...scope.querySelectorAll('.media-card,.category-tile,.platform-tile,.collection-folder,.year-tile,.episode-card')];const i=nodes.indexOf(active);if(i>=0){const next=e.key==='ArrowRight'?nodes[Math.min(nodes.length-1,i+1)]:nodes[Math.max(0,i-1)];if(next&&next!==active){e.preventDefault();next.focus({preventScroll:true});next.scrollIntoView({behavior:settings.motion?'smooth':'auto',block:'nearest',inline:'center'});}}}}
 });
 document.addEventListener('keyup',e=>{if(!['Enter',' '].includes(e.key))return;const b=document.activeElement?.matches?.('[data-smart-play]')?document.activeElement:null;if(!b||!b.dataset.keypressActive)return;e.preventDefault();delete b.dataset.keypressActive;clearTimeout(smartPlayTimer);if(!smartPlayLong)smartPlay(b.dataset.smartPlay,false);smartPlayLong=false;});
 searchInput.addEventListener('input',e=>{searchTerm=e.target.value.trim();if(searchTerm){pageTitle.textContent=settings.language==='es'?'Buscar':'Search';pageEyebrow.textContent=t('results');queueRemoteSearch();}else{clearTimeout(searchTimer);remoteSearchResults=[];setView(currentView);}});
@@ -1641,14 +1654,14 @@ function cloudHeaders(auth=true){const h={'apikey':cloudConfig.key||'','Content-
 function cloudBase(){return String(cloudConfig.url||'').replace(/\/$/,'');}
 async function cloudRequest(path,{method='GET',body=null,auth=true,prefer='',_retry=false}={}){if(!cloudBase()||!cloudConfig.key)throw new Error(t('cloudNeedsSetup'));const res=await fetch(cloudBase()+path,{method,headers:{...cloudHeaders(auth),...(prefer?{'Prefer':prefer}:{})},body:body===null?undefined:JSON.stringify(body)});if(res.status===401&&auth&&!_retry&&cloudSession?.refresh_token){const refreshed=await cloudRefreshSession();if(refreshed)return cloudRequest(path,{method,body,auth,prefer,_retry:true});}let data=null;const text=await res.text();try{data=text?JSON.parse(text):null;}catch{data=text;}if(!res.ok)throw new Error(data?.msg||data?.message||data?.error_description||data?.error||`HTTP ${res.status}`);return data;}
 async function cloudRefreshSession(){if(!cloudSession?.refresh_token)return false;try{const data=await cloudRequest('/auth/v1/token?grant_type=refresh_token',{method:'POST',auth:false,body:{refresh_token:cloudSession.refresh_token}});cloudSession=data;rawStore.set('cloudSession',cloudSession);return true;}catch{return false;}}
-async function cloudAuth(email,password,signup=false){if(!cloudBase()||!cloudConfig.key)throw new Error(t('cloudNeedsSetup'));const path=signup?'/auth/v1/signup':'/auth/v1/token?grant_type=password';const data=await cloudRequest(path,{method:'POST',auth:false,body:{email,password}});if(signup&&data&&!data.access_token){toast(t('cloudSync'),settings.language==='es'?'Revisa tu email para confirmar la cuenta.':'Check your email to confirm the account.');return data;}cloudSession=data;rawStore.set('cloudSession',cloudSession);await cloudPullAll(true);return data;}
+async function cloudAuth(email,password,signup=false){if(!cloudBase()||!cloudConfig.key)throw new Error(t('cloudNeedsSetup'));const path=signup?'/auth/v1/signup':'/auth/v1/token?grant_type=password';const data=await cloudRequest(path,{method:'POST',auth:false,body:{email,password}});if(signup&&data&&!data.access_token){toast(t('cloudSync'),settings.language==='es'?'Revisa tu email para confirmar la cuenta.':'Check your email to confirm the account.');return data;}cloudSession=data;rawStore.set('cloudSession',cloudSession);await cloudPullAll(true);if(IS_ANDROID_TV)ensurePersonalDefaultAddon().then(()=>{}).catch(()=>{});setTimeout(()=>cloudPushAll(false).catch(()=>{}),160);return data;}
 function cloudUserId(){return cloudSession?.user?.id||'';}
 function cloudProfilePayload(id=activeProfileId){const prev=activeProfileId;let fav=[],prog={};try{activeProfileId=id;fav=store.get('favorites',[]);prog=store.get('progress',{});}finally{activeProfileId=prev;}return {favorites:fav,progress:prog,updatedAt:Date.now()};}
 async function cloudUpsert(profileId,state){const uid=cloudUserId();if(!uid)throw new Error(t('cloudNeedsLogin'));return cloudRequest('/rest/v1/miflix_user_state?on_conflict=user_id,profile_id',{method:'POST',body:{user_id:uid,profile_id:profileId,state,updated_at:new Date().toISOString()},prefer:'resolution=merge-duplicates,return=minimal'});}
 async function cloudRead(profileId){const uid=cloudUserId();if(!uid)throw new Error(t('cloudNeedsLogin'));const rows=await cloudRequest(`/rest/v1/miflix_user_state?user_id=eq.${encodeURIComponent(uid)}&profile_id=eq.${encodeURIComponent(profileId)}&select=state,updated_at`,{});return Array.isArray(rows)&&rows[0]?rows[0]:null;}
 function mergeProgress(local={},remote={}){const out={...local};for(const [k,v] of Object.entries(remote||{})){const lv=out[k];if(!lv||Number(v?.updatedAt||0)>=Number(lv?.updatedAt||0))out[k]=v;}return out;}
-async function cloudPullAll(show=false){if(!cloudUserId())return false;if(cloudSyncBusy)return false;cloudSyncBusy=true;try{const account=await cloudRead(CLOUD_PROFILE_ACCOUNT).catch(()=>null);if(account?.state?.profiles?.length){const remoteProfiles=account.state.profiles;const map=new Map(profiles.map(p=>[p.id,p]));remoteProfiles.forEach(p=>{if(!map.has(p.id))map.set(p.id,p);else Object.assign(map.get(p.id),p);});profiles=[...map.values()];if(!profiles.some(p=>p.primary))profiles[0].primary=true;rawStore.set('profiles',profiles);}for(const p of profiles){const row=await cloudRead(p.id).catch(()=>null);if(!row?.state)continue;const prev=activeProfileId;activeProfileId=p.id;const localFav=new Set(store.get('favorites',[]));(row.state.favorites||[]).forEach(x=>localFav.add(x));store.set('favorites',[...localFav]);store.set('progress',mergeProgress(store.get('progress',{}),row.state.progress||{}));activeProfileId=prev;}cloudLastSync=Date.now();rawStore.set('cloudLastSync',cloudLastSync);reloadProfileState();if(show)toast(t('cloudSyncDone'),new Date(cloudLastSync).toLocaleString());return true;}finally{cloudSyncBusy=false;}}
-async function cloudPushAll(show=false){if(!cloudUserId())return false;if(cloudSyncBusy)return false;cloudSyncBusy=true;try{await cloudUpsert(CLOUD_PROFILE_ACCOUNT,{profiles:profiles.map(({id,name,avatar,avatarKind,avatarValue,primary,shareSetup,createdAt})=>({id,name,avatar,avatarKind,avatarValue,primary,shareSetup,createdAt})),updatedAt:Date.now()});for(const p of profiles)await cloudUpsert(p.id,cloudProfilePayload(p.id));cloudLastSync=Date.now();rawStore.set('cloudLastSync',cloudLastSync);if(show)toast(t('cloudSyncDone'),new Date(cloudLastSync).toLocaleString());return true;}finally{cloudSyncBusy=false;}}
+async function cloudPullAll(show=false){if(!cloudUserId())return false;if(cloudSyncBusy)return false;cloudSyncBusy=true;try{const account=await cloudRead(CLOUD_PROFILE_ACCOUNT).catch(()=>null);if(account?.state?.privateSetup){cloudPrivateSetup={...cloudPrivateSetup,...account.state.privateSetup};rawStore.set('cloudPrivateSetup',cloudPrivateSetup);if(!tmdbAuth.credential&&effectiveTmdbToken()){tmdbAuth={credential:effectiveTmdbToken()};store.set('tmdbAuth',tmdbAuth);}}if(account?.state?.profiles?.length){const remoteProfiles=account.state.profiles;const map=new Map(profiles.map(p=>[p.id,p]));remoteProfiles.forEach(p=>{if(!map.has(p.id))map.set(p.id,p);else Object.assign(map.get(p.id),p);});profiles=[...map.values()];if(!profiles.some(p=>p.primary))profiles[0].primary=true;rawStore.set('profiles',profiles);}for(const p of profiles){const row=await cloudRead(p.id).catch(()=>null);if(!row?.state)continue;const prev=activeProfileId;activeProfileId=p.id;const localFav=new Set(store.get('favorites',[]));(row.state.favorites||[]).forEach(x=>localFav.add(x));store.set('favorites',[...localFav]);store.set('progress',mergeProgress(store.get('progress',{}),row.state.progress||{}));activeProfileId=prev;}cloudLastSync=Date.now();rawStore.set('cloudLastSync',cloudLastSync);reloadProfileState();if(IS_ANDROID_TV)ensurePersonalDefaultAddon().then(()=>{}).catch(()=>{});if(show)toast(t('cloudSyncDone'),new Date(cloudLastSync).toLocaleString());return true;}finally{cloudSyncBusy=false;}}
+async function cloudPushAll(show=false){if(!cloudUserId())return false;if(cloudSyncBusy)return false;cloudSyncBusy=true;try{await cloudUpsert(CLOUD_PROFILE_ACCOUNT,{profiles:profiles.map(({id,name,avatar,avatarKind,avatarValue,primary,shareSetup,createdAt})=>({id,name,avatar,avatarKind,avatarValue,primary,shareSetup,createdAt})),privateSetup:{tmdbToken:effectiveTmdbToken(),torrentioManifest:effectiveTorrentioManifest()},updatedAt:Date.now()});for(const p of profiles)await cloudUpsert(p.id,cloudProfilePayload(p.id));cloudLastSync=Date.now();rawStore.set('cloudLastSync',cloudLastSync);if(show)toast(t('cloudSyncDone'),new Date(cloudLastSync).toLocaleString());return true;}finally{cloudSyncBusy=false;}}
 function scheduleCloudSync(includeProfiles=false){if(!cloudUserId())return;clearTimeout(cloudSyncTimer);cloudSyncTimer=setTimeout(()=>cloudPushAll(false).catch(()=>{}),includeProfiles?900:1800);}
 async function cloudSyncNow(){try{if(!cloudUserId())throw new Error(t('cloudNeedsLogin'));await cloudPullAll(false);await cloudPushAll(true);renderSettings();}catch(err){toast(t('cloudSyncError'),err.message);}}
 function cloudSignOut(){cloudSession=null;rawStore.remove('cloudSession');toast(t('cloudSignedOut'),'');renderSettings();}

@@ -56,6 +56,11 @@ public class MainActivity extends AppCompatActivity {
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private boolean playerVisible = false;
     private String currentTitle = "MiFlix";
+    private final Runnable hidePlayerChrome = () -> {
+        if (!playerVisible) return;
+        if (playerTitle != null) playerTitle.animate().alpha(0f).setDuration(160).withEndAction(() -> playerTitle.setVisibility(View.GONE)).start();
+        if (playerClose != null) playerClose.animate().alpha(0f).setDuration(160).withEndAction(() -> playerClose.setVisibility(View.GONE)).start();
+    };
 
     private final Runnable stateTicker = new Runnable() {
         @Override public void run() {
@@ -99,7 +104,7 @@ public class MainActivity extends AppCompatActivity {
         ws.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         ws.setAllowFileAccessFromFileURLs(true);
         ws.setAllowUniversalAccessFromFileURLs(true);
-        ws.setUserAgentString(ws.getUserAgentString() + " MiFlixTV/1.9.6");
+        ws.setUserAgentString(ws.getUserAgentString() + " MiFlixTV/1.9.7");
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
         webView.setWebViewClient(new WebViewClient() {
@@ -230,6 +235,14 @@ public class MainActivity extends AppCompatActivity {
         }).start();
     }
 
+    private void showPlayerChrome() {
+        if (!playerVisible) return;
+        mainHandler.removeCallbacks(hidePlayerChrome);
+        if (playerTitle != null) { playerTitle.setVisibility(View.VISIBLE); playerTitle.setAlpha(1f); }
+        if (playerClose != null) { playerClose.setVisibility(View.VISIBLE); playerClose.setAlpha(1f); }
+        mainHandler.postDelayed(hidePlayerChrome, 2000);
+    }
+
     private void ensurePlayer() {
         if (player != null) return;
         DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(this)
@@ -312,6 +325,7 @@ public class MainActivity extends AppCompatActivity {
                 playerLayer.setVisibility(View.VISIBLE);
                 playerLayer.bringToFront();
                 playerView.requestFocus();
+                showPlayerChrome();
                 hideSystemUi();
                 mainHandler.removeCallbacks(stateTicker);
                 mainHandler.post(stateTicker);
@@ -343,6 +357,7 @@ public class MainActivity extends AppCompatActivity {
             try { player.pause(); player.stop(); player.clearMediaItems(); } catch (Exception ignored) { }
         }
         playerVisible = false;
+        mainHandler.removeCallbacks(hidePlayerChrome);
         playerLayer.setVisibility(View.GONE);
         mainHandler.removeCallbacks(stateTicker);
         webView.requestFocus();
@@ -444,6 +459,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (playerVisible && keyCode != KeyEvent.KEYCODE_BACK) {
+            showPlayerChrome();
+            if (playerView != null) playerView.showController();
+        }
         if (keyCode == KeyEvent.KEYCODE_BACK) {
             if (playerVisible) {
                 closeNativePlayer(true);
