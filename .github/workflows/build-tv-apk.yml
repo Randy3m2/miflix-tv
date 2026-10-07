@@ -2,6 +2,9 @@ name: Build MiFlix Android TV APK
 
 on:
   workflow_dispatch:
+  push:
+    tags:
+      - 'tv-v*'
 
 permissions:
   contents: write
@@ -33,27 +36,50 @@ jobs:
         with:
           gradle-version: '8.11.1'
 
+      - name: Inject personal MiFlix defaults
+        env:
+          MIFLIX_TMDB_TOKEN: ${{ secrets.MIFLIX_TMDB_TOKEN }}
+          MIFLIX_TORRENTIO_MANIFEST: ${{ secrets.MIFLIX_TORRENTIO_MANIFEST }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          cfg = {
+              "supabaseUrl": "https://iwvhigqxsvvgyzdygiqa.supabase.co",
+              "supabaseKey": "sb_publishable_TdzEQXtDadVMKhSLVe0ihw_EAQ4iNsd",
+              "tmdbToken": os.environ.get("MIFLIX_TMDB_TOKEN", ""),
+              "torrentioManifest": os.environ.get("MIFLIX_TORRENTIO_MANIFEST", ""),
+          }
+          out = Path("app/src/main/assets/miflix/private-config.js")
+          out.write_text("window.MIFLIX_DEFAULTS = " + json.dumps(cfg) + ";\n", encoding="utf-8")
+          PY
+
       - name: Build MiFlix TV APK
         run: gradle :app:assembleDebug --stacktrace
 
       - name: Prepare APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk MiFlix-TV-v1.9.4.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk MiFlix-TV-v1.9.5.apk
 
-      - name: Upload APK
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: MiFlix-TV-v1.9.4
-          path: MiFlix-TV-v1.9.4.apk
+          name: MiFlix-TV-v1.9.5
+          path: MiFlix-TV-v1.9.5.apk
 
       - name: Publish test release
+        if: github.event_name == 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="tv-v1.9.4"
+          TAG="tv-v1.9.5"
           gh release view "$TAG" >/dev/null 2>&1 || \
-          gh release create "$TAG" \
-            --target "${GITHUB_SHA}" \
-            --title "MiFlix TV v1.9.4" \
-            --notes "Android TV test build."
+          gh release create "$TAG" --target "${GITHUB_SHA}" --title "MiFlix TV v1.9.5" --notes "Android TV test build: D-pad polish, splash screen, TextureView playback and TV compatibility mode."
+          gh release upload "$TAG" MiFlix-TV-v1.9.5.apk --clobber
 
-          gh release upload "$TAG" MiFlix-TV-v1.9.4.apk --clobber
+      - name: Publish tagged release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1 || gh release create "${GITHUB_REF_NAME}" --title "MiFlix TV ${GITHUB_REF_NAME}" --notes "MiFlix Android TV test build"
+          gh release upload "${GITHUB_REF_NAME}" MiFlix-TV-v1.9.5.apk --clobber
