@@ -58,23 +58,23 @@ jobs:
         run: gradle :app:assembleDebug --stacktrace
 
       - name: Prepare APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk MiFlix-TV-v1.9.5.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk MiFlix-TV-v1.9.6.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: MiFlix-TV-v1.9.5
-          path: MiFlix-TV-v1.9.5.apk
+          name: MiFlix-TV-v1.9.6
+          path: MiFlix-TV-v1.9.6.apk
 
       - name: Publish test release
         if: github.event_name == 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="tv-v1.9.5"
+          TAG="tv-v1.9.6"
           gh release view "$TAG" >/dev/null 2>&1 || \
-          gh release create "$TAG" --target "${GITHUB_SHA}" --title "MiFlix TV v1.9.5" --notes "Android TV test build: D-pad polish, splash screen, TextureView playback and TV compatibility mode."
-          gh release upload "$TAG" MiFlix-TV-v1.9.5.apk --clobber
+          gh release create "$TAG" --target "${GITHUB_SHA}" --title "MiFlix TV v1.9.6" --notes "Android TV performance build: modal focus trap, lighter artwork, lazy platform animations and faster D-pad navigation."
+          gh release upload "$TAG" MiFlix-TV-v1.9.6.apk --clobber
 
       - name: Publish tagged release
         if: startsWith(github.ref, 'refs/tags/')
@@ -82,4 +82,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1 || gh release create "${GITHUB_REF_NAME}" --title "MiFlix TV ${GITHUB_REF_NAME}" --notes "MiFlix Android TV test build"
-          gh release upload "${GITHUB_REF_NAME}" MiFlix-TV-v1.9.5.apk --clobber
+          gh release upload "${GITHUB_REF_NAME}" MiFlix-TV-v1.9.6.apk --clobber
